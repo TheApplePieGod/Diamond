@@ -3,17 +3,17 @@
 
 int main(int argc, char** argv)
 {
-    diamond Engine;
+    diamond* Engine = new diamond();
     
-    Engine.Initialize(800, 600, "Diamond Test");
+    Engine->Initialize(800, 600, "Diamond Test");
 
-    while (Engine.IsRunning())
+    while (Engine->IsRunning())
     {
-        Engine.BeginFrame();
-        Engine.EndFrame();
+        Engine->BeginFrame();
+        Engine->EndFrame();
     }
 
-    Engine.Cleanup();
+    Engine->Cleanup();
 
     return 0;
 }

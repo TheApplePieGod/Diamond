@@ -1,7 +1,6 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <string>
 #include <vector>
 #include <optional>
 
@@ -29,7 +28,7 @@ struct swap_chain_support_details
 class diamond
 {
 public:
-    void Initialize(int width, int height, std::string name);
+    void Initialize(int width, int height, const char* name);
     void BeginFrame();
     void EndFrame();
     void Cleanup();
@@ -39,6 +38,9 @@ public:
 private:
     void ConfigureValidationLayers();
     void CreateGraphicsPipeline();
+    void CreateRenderPass();
+    VkPipelineShaderStageCreateInfo CreateShaderStage(VkShaderModule shaderModule, VkShaderStageFlagBits stage, const char* entrypoint = "main");
+    VkShaderModule CreateShaderModule(const char* ShaderPath);
     queue_family_indices GetQueueFamilies(VkPhysicalDevice device);
     swap_chain_support_details GetSwapChainSupport(VkPhysicalDevice device);
     bool IsDeviceSuitable(VkPhysicalDevice device);
@@ -51,6 +53,8 @@ private:
 
     std::vector<const char*> validationLayers = {};
     std::vector<const char*> deviceExtensions = {};
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+    int currentFrameIndex = 0;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -58,13 +62,22 @@ private:
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout;
+    VkRenderPass renderPass;
+    VkPipeline graphicsPipeline;
+    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
+    VkCommandPool commandPool;
+    std::vector<VkCommandBuffer> commandBuffers = {};
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
+    std::vector<VkFence> imagesInFlight;
 
     // todo: move to struct
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImage> swapChainImages = {};
-    std::vector<VkImageView> swapChainImageViews;
-
-    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
+    std::vector<VkImageView> swapChainImageViews = {};
+    std::vector<VkFramebuffer> swapChainFrameBuffers = {};
 };
