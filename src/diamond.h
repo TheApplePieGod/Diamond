@@ -35,6 +35,8 @@ public:
 
     bool IsRunning();
 
+    inline GLFWwindow* Window() { return window; };
+
 private:
     void ConfigureValidationLayers();
     void CreateGraphicsPipeline();
