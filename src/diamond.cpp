@@ -202,7 +202,7 @@ void diamond::Initialize(int width, int height, const char* name)
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        poolInfo.flags = 0; // Optional
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // allow resetting
 
         VkResult result = vkCreateCommandPool(logicalDevice, &poolInfo, nullptr, &commandPool);
         Assert(result == VK_SUCCESS);
@@ -224,8 +224,8 @@ void diamond::Initialize(int width, int height, const char* name)
         0, 1, 2, 2, 3, 0
     };
 
-    MapMemory((void*)vertices.data(), sizeof(vertex), vertices.size(), vertexBufferMemory);
-    MapMemory((void*)indices.data(), sizeof(u16), indices.size(), indexBufferMemory);
+    //MapMemory((void*)vertices.data(), sizeof(vertex), vertices.size(), vertexBufferMemory);
+    //MapMemory((void*)indices.data(), sizeof(u16), indices.size(), indexBufferMemory);
     //------
 
     CreateCommandBuffers();
@@ -339,6 +339,38 @@ void diamond::CreateSwapChain()
         result = vkCreateImageView(logicalDevice, &createInfo, nullptr, &swapChainImageViews[i]);
         Assert(result == VK_SUCCESS);
     }
+}
+
+void diamond::BindVertices(const vertex* vertices, u32 vertexCount)
+{
+    BindVertices(const_cast<vertex*>(vertices), vertexCount);
+}
+
+void diamond::BindVertices(vertex* vertices, u32 vertexCount)
+{
+    MapMemory((void*)vertices, sizeof(vertex), vertexCount, vertexBufferMemory, boundVertexCount);
+    boundVertexCount += vertexCount;
+}
+
+void diamond::BindIndices(const u16* indices, u32 indexCount)
+{
+    BindIndices(const_cast<u16*>(indices), indexCount);
+}
+
+void diamond::BindIndices(u16* indices, u32 indexCount)
+{
+    MapMemory((u16*)indices, sizeof(u16), indexCount, indexBufferMemory, boundIndexCount);
+    boundIndexCount += indexCount;
+}
+
+void diamond::Draw(u32 vertexCount)
+{
+    vkCmdDraw(renderPassBuffer, vertexCount, 1, boundVertexCount - vertexCount, 0);
+}
+
+void diamond::DrawIndexed(u32 indexCount, u32 vertexCount)
+{
+    vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, boundIndexCount - indexCount, boundVertexCount - vertexCount, 0);
 }
 
 void diamond::CreateFrameBuffers()
@@ -845,10 +877,10 @@ VkExtent2D diamond::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilitie
     }
 }
 
-void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemory bufferMemory)
+void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemory bufferMemory, u32 elementMemoryOffset)
 {
     void* buffer;
-    vkMapMemory(logicalDevice, bufferMemory, 0, dataSize * elementCount, 0, &buffer);
+    vkMapMemory(logicalDevice, bufferMemory, elementMemoryOffset * dataSize, dataSize * elementCount, 0, &buffer);
     memcpy(buffer, data, dataSize * elementCount);
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
@@ -879,8 +911,9 @@ void diamond::BeginFrame()
     vkCmdBindIndexBuffer(renderPassBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
     
     vkCmdBindPipeline(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    //vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
-    vkCmdDrawIndexed(renderPassBuffer, 6, 1, 0, 0, 0);
+
+    boundVertexCount = 0;
+    boundIndexCount = 0;
 }
 
 void diamond::EndFrame()

@@ -67,6 +67,14 @@ public:
     void EndFrame();
     void Cleanup();
 
+    void BindVertices(const vertex* vertices, uint32_t vertexCount);
+    void BindVertices(vertex* vertices, uint32_t vertexCount);
+    void BindIndices(const uint16_t* indices, uint32_t indexCount);
+    void BindIndices(uint16_t* indices, uint32_t indexCount);
+
+    void Draw(uint32_t vertexCount);
+    void DrawIndexed(uint32_t indexCount, uint32_t vertexCount);
+
     bool IsRunning();
 
     inline GLFWwindow* Window() { return window; };
@@ -93,7 +101,7 @@ private:
     VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes);
     VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-    void MapMemory(void* data, uint32_t dataSize, uint32_t elementCount, VkDeviceMemory bufferMemory);
+    void MapMemory(void* data, uint32_t dataSize, uint32_t elementCount, VkDeviceMemory bufferMemory, uint32_t elementMemoryOffset);
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
@@ -103,6 +111,8 @@ private:
     std::vector<const char*> deviceExtensions = {};
     const int MAX_FRAMES_IN_FLIGHT = 2;
     int currentFrameIndex = 0;
+    uint32_t boundIndexCount = 0;
+    uint32_t boundVertexCount = 0;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
