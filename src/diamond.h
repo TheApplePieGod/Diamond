@@ -15,12 +15,34 @@ enum camera_mode: uint16_t
     Orthographic = 1
 };
 
+struct transform
+{
+    glm::vec2 location = { 0.f, 0.f };
+    float rotation = 0.f;
+    glm::vec2 scale = { 1.f, 1.f };
+
+    inline bool operator==(const transform& other)
+    {
+        return (
+            location == other.location &&
+            rotation == other.rotation &&
+            scale == other.scale
+        );
+    }
+};
+
 struct texture
 {
     VkImage image;
     VkDeviceMemory memory;
     VkImageView imageView;
     uint32_t id;
+};
+
+struct object_data
+{
+    glm::mat4 model;
+    int textureIndex;
 };
 
 struct vertex
@@ -106,14 +128,13 @@ public:
     //uint32_t DeleteTexture(uint32_t textureId);
     void SyncTextureUpdates();
 
-    inline void SetNextDrawTextureOverride(int textureIndex) { nextDrawTextureOverride = textureIndex; };
     void BindVertices(const vertex* vertices, uint32_t vertexCount);
     void BindVertices(vertex* vertices, uint32_t vertexCount);
     void BindIndices(const uint16_t* indices, uint32_t indexCount);
     void BindIndices(uint16_t* indices, uint32_t indexCount);
 
-    void Draw(uint32_t vertexCount);
-    void DrawIndexed(uint32_t indexCount, uint32_t vertexCount);
+    void Draw(uint32_t vertexCount, int textureIndex, transform objectTransform = transform());
+    void DrawIndexed(uint32_t indexCount, uint32_t vertexCount, int textureIndex, transform objectTransform = transform());
 
     bool IsRunning();
 
@@ -158,6 +179,7 @@ private:
     void EndSingleTimeCommands(VkCommandBuffer commandBuffer);
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
     VkImageView CreateImageView(VkImage image, VkFormat format);
+    glm::mat4 GenerateModelMatrix(transform objectTransform);
 
     GLFWwindow* window;
 
@@ -170,7 +192,6 @@ private:
     uint32_t nextImageIndex = 0;
     bool shouldPresent = true;
     camera_mode CameraMode = camera_mode::Orthographic;
-    int nextDrawTextureOverride = INT32_MIN;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

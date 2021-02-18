@@ -378,15 +378,6 @@ void diamond::BindVertices(const vertex* vertices, u32 vertexCount)
 
 void diamond::BindVertices(vertex* vertices, u32 vertexCount)
 {
-    if (nextDrawTextureOverride != INT32_MIN)
-    {
-        for (u32 i = 0; i < vertexCount; i++)
-        {
-            vertices[i].textureIndex = nextDrawTextureOverride;
-        }       
-    }
-    nextDrawTextureOverride = INT32_MIN;
-
     MapMemory((void*)vertices, sizeof(vertex), vertexCount, vertexBufferMemory, boundVertexCount);
     boundVertexCount += vertexCount;
 }
@@ -402,14 +393,32 @@ void diamond::BindIndices(u16* indices, u32 indexCount)
     boundIndexCount += indexCount;
 }
 
-void diamond::Draw(u32 vertexCount)
+void diamond::Draw(u32 vertexCount, int textureIndex, transform objectTransform)
 {
+    object_data data;
+    data.textureIndex = textureIndex;
+    data.model = GenerateModelMatrix(objectTransform);
+
+    vkCmdPushConstants(renderPassBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(object_data), &data);
     vkCmdDraw(renderPassBuffer, vertexCount, 1, boundVertexCount - vertexCount, 0);
 }
 
-void diamond::DrawIndexed(u32 indexCount, u32 vertexCount)
+void diamond::DrawIndexed(u32 indexCount, u32 vertexCount, int textureIndex, transform objectTransform)
 {
+    object_data data;
+    data.textureIndex = textureIndex;
+    data.model = GenerateModelMatrix(objectTransform);
+
+    vkCmdPushConstants(renderPassBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(object_data), &data);
     vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, boundIndexCount - indexCount, boundVertexCount - vertexCount, 0);
+}
+
+glm::mat4 diamond::GenerateModelMatrix(transform objectTransform)
+{
+    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, 0.f));
+    model = model * glm::scale(glm::mat4(1.f), glm::vec3(objectTransform.scale, 1.f));
+    model = model * glm::rotate(glm::mat4(1.f), glm::radians(objectTransform.rotation), glm::vec3(0.0f, 0.0f, -1.0f));
+    return model;
 }
 
 void diamond::CreateFrameBuffers()
@@ -645,10 +654,6 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(500.f, 500.f, 1.f));
-    model = model * glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 0.f));
-    model = model * glm::rotate(glm::mat4(1.f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, -1.0f));
-
     glm::mat4 view = glm::lookAt(glm::vec3(0.f, 0.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
     //view = view * glm::rotate(glm::mat4(1.f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -659,7 +664,7 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
         proj = glm::transpose(glm::ortho(-0.5f * swapChainExtent.width, 0.5f * swapChainExtent.width, 0.5f * swapChainExtent.height, -0.5f * swapChainExtent.height, 0.1f, 50.f));
 
     frame_buffer_object fbo{};
-    fbo.viewProj = proj * view * model;
+    fbo.viewProj = proj * view;
 
     MapMemory(&fbo, sizeof(frame_buffer_object), 1, uniformBuffersMemory[imageIndex], 0);
 }
@@ -1044,12 +1049,17 @@ void diamond::CreateGraphicsPipeline()
     dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
+    VkPushConstantRange pushConstants{};
+    pushConstants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstants.offset = 0;
+    pushConstants.size = sizeof(object_data);
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-    pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstants;
     VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout);
     Assert(result == VK_SUCCESS);
 
