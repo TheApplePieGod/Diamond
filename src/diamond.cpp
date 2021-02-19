@@ -27,7 +27,7 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     framebufferResized = true;
 }
 
-void diamond::Initialize(int width, int height, const char* name)
+void diamond::Initialize(int width, int height, const char* windowName, const char* vertShaderPath, const char* fragShaderPath)
 {
     #if DIAMOND_DEBUG
         std::cerr << "Initializing diamond in debug mode" << std::endl;
@@ -35,12 +35,17 @@ void diamond::Initialize(int width, int height, const char* name)
         std::cerr << "Initializing diamond in release mode" << std::endl;
     #endif
 
+    Assert(vertShaderPath != "");
+    Assert(fragShaderPath != "");
+    defaultVertexShader = vertShaderPath;
+    defaultFragmentShader = fragShaderPath;
+
     // init glfw & create window
     {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        window = glfwCreateWindow(width, height, name, nullptr, nullptr);
+        window = glfwCreateWindow(width, height, windowName, nullptr, nullptr);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
     // ------------------------
@@ -49,7 +54,7 @@ void diamond::Initialize(int width, int height, const char* name)
     {
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = name;
+        appInfo.pApplicationName = windowName;
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "Diamond";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -222,7 +227,7 @@ void diamond::Initialize(int width, int height, const char* name)
     {
         CreateRenderPass();
         CreateDescriptorSetLayout();
-        CreateGraphicsPipeline();
+        CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
         CreateColorResources();
     }
     // ------------------------
@@ -353,11 +358,6 @@ u32 diamond::RegisterTexture(void* data, int width, int height)
     return newTex.id;
 }
 
-// u32 diamond::DeleteTexture(u32 textureId)
-// {
-
-// }
-
 void diamond::SyncTextureUpdates()
 {
     // cleanup old resources
@@ -368,9 +368,16 @@ void diamond::SyncTextureUpdates()
 
     // recreate bindings
     CreateDescriptorSetLayout();
-    CreateGraphicsPipeline();
+    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateDescriptorPool();
     CreateDescriptorSets();
+}
+
+void diamond::UpdateShaders(const char* vertShaderPath, const char* fragShaderPath)
+{
+    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr); // todo: move this out of pipeline
+    CreateGraphicsPipeline(vertShaderPath, fragShaderPath);
 }
 
 void diamond::BindVertices(const diamond_vertex* vertices, u32 vertexCount)
@@ -761,11 +768,11 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    glm::mat4 view = glm::lookAt(glm::vec3(CameraPosition.x, CameraPosition.y, 5.f), glm::vec3(CameraPosition.x, CameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
+    glm::mat4 view = glm::lookAt(glm::vec3(cameraPosition.x, cameraPosition.y, 5.f), glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
     //view = view * glm::rotate(glm::mat4(1.f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
     glm::mat4 proj;
-    if (CameraMode == diamond_camera_mode::Perspective)
+    if (cameraMode == diamond_camera_mode::Perspective)
         proj = glm::perspective(glm::radians(75.f), swapChain.swapChainExtent.width / (f32) swapChain.swapChainExtent.height, 0.1f, 10.f);
     else
         proj = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, 0.1f, 50.f));
@@ -902,7 +909,7 @@ void diamond::RecreateSwapChain()
     // recreate
     CreateSwapChain();
     CreateRenderPass();
-    CreateGraphicsPipeline();
+    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
     CreateFrameBuffers();
     CreateUniformBuffers();
@@ -1068,10 +1075,10 @@ void diamond::CreateIndexBuffer()
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
 }
 
-void diamond::CreateGraphicsPipeline()
+void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fragShaderPath)
 {
-    VkShaderModule vertShader = CreateShaderModule("../shaders/test.vert.spv");
-    VkShaderModule fragShader = CreateShaderModule("../shaders/test.frag.spv");
+    VkShaderModule vertShader = CreateShaderModule(vertShaderPath);
+    VkShaderModule fragShader = CreateShaderModule(fragShaderPath);
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { CreateShaderStage(vertShader, VK_SHADER_STAGE_VERTEX_BIT), CreateShaderStage(fragShader, VK_SHADER_STAGE_FRAGMENT_BIT) };
 
@@ -1453,10 +1460,10 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode CamMode, glm::vec2 CamPosition)
+void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camPos)
 {
-    CameraMode = CamMode;
-    CameraPosition = CamPosition;
+    cameraMode = camMode;
+    cameraPosition = camPos;
 
     glfwPollEvents();
 

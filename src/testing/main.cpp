@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
-    Engine->Initialize(800, 600, "Diamond Test");
+    Engine->Initialize(800, 600, "Diamond Test", "../shaders/test.vert.spv", "../shaders/test.frag.spv");
 
     Engine->RegisterTexture("../images/test.png");
     Engine->RegisterTexture("../images/chev.jpg"); 
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
     {
         auto start = std::chrono::high_resolution_clock::now();
         Engine->BeginFrame(diamond_camera_mode::Orthographic, { 0.f, 0.f });
-
+        
         diamond_transform quadTransform;
         quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = 45.f;
