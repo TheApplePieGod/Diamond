@@ -12,4 +12,4 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 - Diamond uses the cross platform window manager library [GLFW](https://www.glfw.org/) behind the scenes, so the engine exposes the GLFW data in order to be used for input and other window related functionality
 - High level vulkan components are also exposed
 
-### Read through the diamond.h header file for detailed documentation on functionality
+### Read through the diamond.h header file for detailed documentation on functionality. Usage/installation instructions coming soon.
