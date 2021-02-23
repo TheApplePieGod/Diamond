@@ -1,4 +1,4 @@
-#include "diamond.h"
+#include <Diamond/diamond.h>
 #include "util/defs.h"
 #include <iostream>
 #include <fstream>

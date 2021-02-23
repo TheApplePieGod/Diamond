@@ -1,4 +1,4 @@
-#include "../diamond.h"
+#include <Diamond/diamond.h>
 #include <iostream>
 #include "../util/defs.h"
 #include <gtc/matrix_transform.hpp>
