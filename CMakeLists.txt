@@ -12,7 +12,7 @@ include_directories("src/lib/stb")
 include_directories("include")
 include_directories("C:/VulkanSDK/1.2.162.1/Include")
 
-#add_compile_definitions(DIAMOND_DEBUG)
+add_compile_definitions(DIAMOND_DEBUG)
 
 # build shaders as well
 add_custom_command(

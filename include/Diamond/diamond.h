@@ -26,16 +26,20 @@ public:
     * Internal updates, binds initial pipeline values, and resets command buffers
     * 
     * @param cameraMode Specify whether to render the scene using a predefined perspective or orthographic view
-    * @param cameraPos Specify the position which the scene should be rendered from
+    * @param cameraDimensions Dimensions to use for the projection if camera mode is orthographic frame independent
+    * @param cameraViewMatrix Specify the view matrix of the camera
+    * @see GenerateViewMatrix()
     */
-    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 cameraPos);
+    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix);
 
     /*
     * Called at the end of every frame in the game loop
     * 
     * Does some cleanup and also handles presenting to the swap chain image buffer
+    * 
+    * @param clearColor The color to clear the screen with when drawing a new frame
     */
-    void EndFrame();
+    void EndFrame(glm::vec4 clearColor);
 
     /*
     * Cleanup engine resources
@@ -167,10 +171,11 @@ public:
     * @param textureIndexes Array of indexes of registered textures that will be drawn on each quad. Pass a -1 to any element to render only color
     * @param quadTransforms Array of world space transforms of each quad
     * @param quadCount The amount of quads to render
+    * @param originTransform Optional transform to transform all drawn quads by
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
     * @see DrawQuadsOffsetScale() RegisterTexture() diamond_transform
     */
-    void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, glm::vec4* colors = nullptr);
+    void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr);
 
     /*
     * Draw many quads to the screen each with a given offset and scale
@@ -183,10 +188,24 @@ public:
     * @param textureIndexes Array of indexes of registered textures that will be drawn on each quad. Pass a -1 to any element to render only color
     * @param offsetScales Array of vec4 that represents the offset (x, y) and scale (z, w) of each quad
     * @param quadCount The amount of quads to render
+    * @param originTransform Optional transform to transform all drawn quads by
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
     * @see DrawQuadsTransform() RegisterTexture() diamond_transform
     */
-    void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, glm::vec4* colors = nullptr);
+    void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr);
+
+    /*
+    * Generate a basic 2D view matrix given the position of the camera
+    * 
+    * @param cameraPosition World position of the camera
+    */
+    glm::mat4 GenerateViewMatrix(glm::vec2 cameraPosition);
+
+    /*
+    * Get the camera's projection matrix (CameraMode)
+    * @see diamond_camera_mode
+    */
+    inline glm::mat4 GetProjectionMatrix() { return cameraProjMatrix; };
 
     /*
     * Is the engine marked as still running
@@ -196,6 +215,27 @@ public:
     * @returns true if the engine is running and the window is still open
     */
     bool IsRunning();
+
+    /*
+    * Get the current size of the engine window
+    * 
+    * @returns The size of the window in pixels
+    */
+    glm::vec2 GetWindowSize();
+
+    /*
+    * Get the current aspect ratio of the engine window
+    * 
+    * @returns The aspect ratio
+    */
+    float GetAspectRatio();
+
+    /*
+    * Sets the glfw window to windowed or fullscreen exclusive mode depending on the input parameter
+    * 
+    * @param fullscreen true if the window should be fullscreen
+    */
+    void SetFullscreen(bool fullscreen);
 
     /*
     * Get the glfw window handle
@@ -284,10 +324,13 @@ private:
     uint32_t boundVertexCount = 0;
     uint32_t nextImageIndex = 0;
     bool shouldPresent = true;
-    diamond_camera_mode cameraMode = diamond_camera_mode::Orthographic;
-    glm::vec2 cameraPosition = { 0.f, 0.f };
+    diamond_camera_mode cameraMode = diamond_camera_mode::OrthographicViewportIndependent;
+    glm::mat4 cameraViewMatrix;
+    glm::mat4 cameraProjMatrix;
+    glm::vec2 cameraDimensions;
     const char* defaultVertexShader = "";
     const char* defaultFragmentShader = "";
+    int savedWindowSizeAndPos[4]; // size xy, pos xy
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

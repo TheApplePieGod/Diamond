@@ -31,22 +31,22 @@ int main(int argc, char** argv)
     while (Engine->IsRunning())
     {
         auto start = std::chrono::high_resolution_clock::now();
-        Engine->BeginFrame(diamond_camera_mode::Orthographic, { 0.f, 0.f });
+        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, { 0.f, 0.f });
         
         diamond_transform quadTransform;
         quadTransform.location = { 0.f, 0.f };
-        quadTransform.rotation = 45.f;
-        quadTransform.scale = { 500.f, 500.f };
+        //quadTransform.rotation = 45.f;
+        quadTransform.scale = { 3000.f ,1000.f };
         Engine->DrawQuad(1, quadTransform);
 
-        quadTransform.location = { 300.f, 0.f };
-        quadTransform.rotation = -45.f;
-        quadTransform.scale = { 300.f, 300.f };
-        Engine->DrawQuad(2, quadTransform);
+        // quadTransform.location = { 300.f, 0.f };
+        // quadTransform.rotation = -45.f;
+        // quadTransform.scale = { 300.f, 300.f };
+        // Engine->DrawQuad(2, quadTransform);
 
-        Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
+        //Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
 
-        Engine->EndFrame();
+        Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
         auto stop = std::chrono::high_resolution_clock::now();
         deltaTime = std::max((f32)(std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)).count(), 0.5f);
         fps = 1.f / (deltaTime / 1000.f);

@@ -442,7 +442,7 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
     DrawIndexed(6, 4, textureIndex, quadTransform);
 }
 
-void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, glm::vec4* colors)
+void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform, glm::vec4* colors)
 {
     std::vector<diamond_vertex> vertices(quadCount * 4);
     std::vector<u16> indices(quadCount * 6);
@@ -474,14 +474,12 @@ void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTra
         indices[indicesIndex + 5] = baseIndices[5] + vertexIndex;
     }
 
-    diamond_transform baseTransform = diamond_transform();
-
     BindVertices(vertices.data(), static_cast<u32>(vertices.size()));
     BindIndices(indices.data(), static_cast<u32>(indices.size()));
-    DrawIndexed(static_cast<u32>(indices.size()), static_cast<u32>(vertices.size()), -1, baseTransform);
+    DrawIndexed(static_cast<u32>(indices.size()), static_cast<u32>(vertices.size()), -1, originTransform);
 }
 
-void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, glm::vec4* colors)
+void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform, glm::vec4* colors)
 {
     std::vector<diamond_vertex> vertices(quadCount * 4);
     std::vector<u16> indices(quadCount * 6);
@@ -512,11 +510,14 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
         indices[indicesIndex + 5] = baseIndices[5] + vertexIndex;
     }
 
-    diamond_transform baseTransform = diamond_transform();
-
     BindVertices(vertices.data(), static_cast<u32>(vertices.size()));
     BindIndices(indices.data(), static_cast<u32>(indices.size()));
-    DrawIndexed(static_cast<u32>(indices.size()), static_cast<u32>(vertices.size()), -1, baseTransform);
+    DrawIndexed(static_cast<u32>(indices.size()), static_cast<u32>(vertices.size()), -1, originTransform);
+}
+
+glm::mat4 diamond::GenerateViewMatrix(glm::vec2 cameraPosition)
+{
+    return glm::lookAt(glm::vec3(cameraPosition.x, cameraPosition.y, 5.f), glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
 }
 
 glm::mat4 diamond::GenerateModelMatrix(diamond_transform objectTransform)
@@ -763,22 +764,18 @@ void diamond::CreateCommandBuffers()
 
 void diamond::UpdatePerFrameBuffer(u32 imageIndex)
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
+    f32 aspect = swapChain.swapChainExtent.width / (f32) swapChain.swapChainExtent.height;
 
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    glm::mat4 view = glm::lookAt(glm::vec3(cameraPosition.x, cameraPosition.y, 5.f), glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
-    //view = view * glm::rotate(glm::mat4(1.f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-    glm::mat4 proj;
     if (cameraMode == diamond_camera_mode::Perspective)
-        proj = glm::perspective(glm::radians(75.f), swapChain.swapChainExtent.width / (f32) swapChain.swapChainExtent.height, 0.1f, 10.f);
+        cameraProjMatrix = glm::perspective(glm::radians(75.f), aspect, 0.1f, 10.f);
+    else if (cameraMode == OrthographicViewportDependent)
+        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, 0.1f, 50.f));
     else
-        proj = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, 0.1f, 50.f));
+        //proj = glm::transpose(glm::ortho(-0.5f * aspect, 0.5f * aspect, 0.5f, -0.5f, 0.1f, 50.f));
+        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * cameraDimensions.x, 0.5f * cameraDimensions.x, 0.5f * cameraDimensions.y, -0.5f * cameraDimensions.y, 0.1f, 50.f));
 
     diamond_frame_buffer_object fbo{};
-    fbo.viewProj = proj * view;
+    fbo.viewProj = cameraProjMatrix * cameraViewMatrix;
 
     MapMemory(&fbo, sizeof(diamond_frame_buffer_object), 1, uniformBuffersMemory[imageIndex], 0);
 }
@@ -1460,10 +1457,11 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camPos)
+void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix)
 {
     cameraMode = camMode;
-    cameraPosition = camPos;
+    cameraDimensions = camDimensions;
+    cameraViewMatrix = camViewMatrix;
 
     glfwPollEvents();
 
@@ -1503,7 +1501,7 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camPos)
     boundIndexCount = 0;
 }
 
-void diamond::EndFrame()
+void diamond::EndFrame(glm::vec4 clearColor)
 {
     VkResult result = vkEndCommandBuffer(renderPassBuffer);
     Assert(result == VK_SUCCESS);
@@ -1526,9 +1524,9 @@ void diamond::EndFrame()
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChain.swapChainExtent;
 
-        VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        VkClearValue v_clearColor = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
         renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        renderPassInfo.pClearValues = &v_clearColor;
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
         
@@ -1649,6 +1647,40 @@ void diamond::Cleanup()
 bool diamond::IsRunning()
 {
     return !glfwWindowShouldClose(window);
+}
+
+glm::vec2 diamond::GetWindowSize()
+{
+    return glm::vec2(swapChain.swapChainExtent.width, swapChain.swapChainExtent.height);
+}
+
+f32 diamond::GetAspectRatio()
+{
+    return swapChain.swapChainExtent.width / (f32)swapChain.swapChainExtent.height;
+}
+
+void diamond::SetFullscreen(bool fullscreen)
+{
+    bool alreadyFullscreen = glfwGetWindowMonitor(window) != nullptr;
+    if (alreadyFullscreen == fullscreen)
+        return;
+    else
+    {
+        if (fullscreen)
+        {
+            // backup window position and window size
+            glfwGetWindowPos(window, &savedWindowSizeAndPos[2], &savedWindowSizeAndPos[3] );
+            glfwGetWindowSize(window, &savedWindowSizeAndPos[0], &savedWindowSizeAndPos[1] );
+
+            // get resolution of monitor
+            const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+            // switch to full screen
+            glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, GLFW_DONT_CARE);
+        }
+        else
+            glfwSetWindowMonitor(window, nullptr,  savedWindowSizeAndPos[2], savedWindowSizeAndPos[3], savedWindowSizeAndPos[0], savedWindowSizeAndPos[1], 0 );
+    }
 }
 
 void diamond::ConfigureValidationLayers()

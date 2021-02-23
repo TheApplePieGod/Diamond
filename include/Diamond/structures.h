@@ -1,3 +1,5 @@
+#pragma once
+
 #define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
 #include <GLFW/glfw3.h>
@@ -11,7 +13,8 @@
 enum diamond_camera_mode: uint16_t
 {
     Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life
-    Orthographic = 1 // Orthographic: rendered as a flat image with no perspective or visual depth between objects
+    OrthographicViewportDependent = 1, // Orthographic: rendered as a flat image with no perspective or visual depth between objects, scale of objects do not change with viewport size
+    OrthographicViewportIndependent = 2 // same as 1 except objects scale with viewport size
 };
 
 struct diamond_transform
