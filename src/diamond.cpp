@@ -27,7 +27,7 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     framebufferResized = true;
 }
 
-void diamond::Initialize(int width, int height, const char* windowName, const char* vertShaderPath, const char* fragShaderPath)
+void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndexCount, const char* windowName, const char* vertShaderPath, const char* fragShaderPath)
 {
     #if DIAMOND_DEBUG
         std::cerr << "Initializing diamond in debug mode" << std::endl;
@@ -234,11 +234,11 @@ void diamond::Initialize(int width, int height, const char* windowName, const ch
 
     CreateFrameBuffers();
 
-    CreateVertexBuffer();
+    CreateVertexBuffer(maxVertexCount);
     //textureImageView = CreateTextureImage("../images/test.png", textureImage, textureImageMemory);
     //textureImageView2 = CreateTextureImage("../images/test2.png", textureImage2, textureImageMemory2);
     CreateTextureSampler();
-    CreateIndexBuffer();
+    CreateIndexBuffer(maxIndexCount);
     CreateUniformBuffers();
     CreateDescriptorPool();
     CreateDescriptorSets();
@@ -442,7 +442,7 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
     DrawIndexed(6, 4, textureIndex, quadTransform);
 }
 
-void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform, glm::vec4* colors)
+void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
 {
     std::vector<diamond_vertex> vertices(quadCount * 4);
     std::vector<u16> indices(quadCount * 6);
@@ -459,13 +459,16 @@ void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTra
 
         glm::mat4 modelMatrix = GenerateModelMatrix(quadTransforms[i]);
         glm::vec4 color = { 1.f, 1.f, 1.f, 1.f };
+        glm::vec4 texCoord = { 0.f, 0.f, 1.f, 1.f };
         if (colors != nullptr)
             color = colors[i];
+        if (texCoords != nullptr)
+            texCoord = texCoords[i];
 
-        vertices[vertexIndex] =     { modelMatrix * glm::vec4(-0.5f, -0.5f, 0.f, 1.f), color, {0.0f, 1.0f}, textureIndexes[i]};
-        vertices[vertexIndex + 1] = { modelMatrix * glm::vec4(0.5f, -0.5f, 0.f, 1.f), color, {1.0f, 1.0f}, textureIndexes[i]};
-        vertices[vertexIndex + 2] = { modelMatrix * glm::vec4(0.5f, 0.5f, 0.f, 1.f), color, {1.0f, 0.0f}, textureIndexes[i]};
-        vertices[vertexIndex + 3] = { modelMatrix * glm::vec4(-0.5f, 0.5f, 0.f, 1.f), color, {0.0f, 0.0f}, textureIndexes[i]};
+        vertices[vertexIndex] =     { modelMatrix * glm::vec4(-0.5f, -0.5f, 0.f, 1.f), color, { texCoord.x, texCoord.w }, textureIndexes[i]};
+        vertices[vertexIndex + 1] = { modelMatrix * glm::vec4(0.5f, -0.5f, 0.f, 1.f), color, { texCoord.z, texCoord.w }, textureIndexes[i]};
+        vertices[vertexIndex + 2] = { modelMatrix * glm::vec4(0.5f, 0.5f, 0.f, 1.f), color, { texCoord.z, texCoord.y }, textureIndexes[i]};
+        vertices[vertexIndex + 3] = { modelMatrix * glm::vec4(-0.5f, 0.5f, 0.f, 1.f), color, { texCoord.x, texCoord.y }, textureIndexes[i]};
         indices[indicesIndex] =     baseIndices[0] + vertexIndex;
         indices[indicesIndex + 1] = baseIndices[1] + vertexIndex;
         indices[indicesIndex + 2] = baseIndices[2] + vertexIndex;
@@ -479,7 +482,7 @@ void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTra
     DrawIndexed(static_cast<u32>(indices.size()), static_cast<u32>(vertices.size()), -1, originTransform);
 }
 
-void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform, glm::vec4* colors)
+void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
 {
     std::vector<diamond_vertex> vertices(quadCount * 4);
     std::vector<u16> indices(quadCount * 6);
@@ -495,13 +498,16 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
         int indicesIndex = 6 * i;
 
         glm::vec4 color = { 1.f, 1.f, 1.f, 1.f };
+        glm::vec4 texCoord = { 0.f, 0.f, 1.f, 1.f };
         if (colors != nullptr)
             color = colors[i];
+        if (texCoords != nullptr)
+            texCoord = texCoords[i];
 
-        vertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, {0.0f, 1.0f}, textureIndexes[i] };
-        vertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, {1.0f, 1.0f}, textureIndexes[i] };
-        vertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, {1.0f, 0.0f}, textureIndexes[i] };
-        vertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, {0.0f, 0.0f}, textureIndexes[i] };
+        vertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.w }, textureIndexes[i] };
+        vertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.w }, textureIndexes[i] };
+        vertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.y }, textureIndexes[i] };
+        vertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.y }, textureIndexes[i] };
         indices[indicesIndex] =     baseIndices[0] + vertexIndex;
         indices[indicesIndex + 1] = baseIndices[1] + vertexIndex;
         indices[indicesIndex + 2] = baseIndices[2] + vertexIndex;
@@ -1060,15 +1066,15 @@ void diamond::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemory
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateVertexBuffer()
+void diamond::CreateVertexBuffer(int maxVertexCount)
 {
-    VkDeviceSize bufferSize = sizeof(diamond_vertex) * 5000;
+    VkDeviceSize bufferSize = sizeof(diamond_vertex) * maxVertexCount;
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 }
 
-void diamond::CreateIndexBuffer()
+void diamond::CreateIndexBuffer(int maxIndexCount)
 {
-    VkDeviceSize bufferSize = sizeof(u16) * 10000;
+    VkDeviceSize bufferSize = sizeof(u16) * maxIndexCount;
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
 }
 

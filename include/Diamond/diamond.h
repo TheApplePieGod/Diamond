@@ -13,12 +13,14 @@ public:
     * 
     * @param width Desired starting width of the window
     * @param height Desired starting height of the window
+    * @param maxVertexCount Max amount of vertices rendered per frame
+    * @param maxIndexCount Max amount of indices rendered per frame
     * @param windowName Desired name of the window and also name of the vulkan application
     * @param vertShaderPath Path to the initial compiled .spv vertex shader
     * @param fragShaderPath Path to the initial compiled .spv fragment shader
     * @note See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation
     */
-    void Initialize(int width, int height, const char* windowName, const char* vertShaderPath, const char* fragShaderPath);
+    void Initialize(int width, int height, int maxVertexCount, int maxIndexCount, const char* windowName, const char* vertShaderPath, const char* fragShaderPath);
 
     /*
     * Called at the start of every frame in the game loop
@@ -173,9 +175,10 @@ public:
     * @param quadCount The amount of quads to render
     * @param originTransform Optional transform to transform all drawn quads by
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
+    * @param texCoords Array of texture coordinates that will be applied to each quad, top left and bottom right. This parameter is optional and will default to [0, 0] and [1, 1]
     * @see DrawQuadsOffsetScale() RegisterTexture() diamond_transform
     */
-    void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr);
+    void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
     /*
     * Draw many quads to the screen each with a given offset and scale
@@ -190,9 +193,10 @@ public:
     * @param quadCount The amount of quads to render
     * @param originTransform Optional transform to transform all drawn quads by
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
+    * @param texCoords Array of texture coordinates that will be applied to each quad, top left and bottom right. This parameter is optional and will default to [0, 0] and [1, 1]
     * @see DrawQuadsTransform() RegisterTexture() diamond_transform
     */
-    void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr);
+    void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
     /*
     * Generate a basic 2D view matrix given the position of the camera
@@ -280,8 +284,8 @@ private:
     void CreateCommandBuffers();
     void RecreateSwapChain();
     void CleanupSwapChain();
-    void CreateVertexBuffer();
-    void CreateIndexBuffer();
+    void CreateVertexBuffer(int maxVertexCount);
+    void CreateIndexBuffer(int maxIndexCount);
     void CreateDescriptorSetLayout();
     void CreateUniformBuffers();
     void UpdatePerFrameBuffer(uint32_t imageIndex);
