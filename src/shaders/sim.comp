@@ -1,12 +1,30 @@
 #version 450
 
-layout(set = 0, binding = 0, std430) buffer Positions
+struct vertex
 {
-    vec2 pos[];
-} positions;
+  vec2 pos;
+  vec2 padding;
+  vec4 color;
+};
+
+layout(set = 0, binding = 0, std430) buffer ParticleData
+{
+    vertex vertices[];
+} particleData;
+
+layout(set = 0, binding = 1, std430) buffer VelocityData
+{
+    vec2 velocities[];
+} velocityData;
 
 void main()
 {
-    vec2 current_pos = positions.pos[gl_GlobalInvocationID.x];
-    positions.pos[gl_GlobalInvocationID.x] = current_pos - vec2(1.0, 1.0);
+    vec2 current_pos = particleData.vertices[gl_GlobalInvocationID.x].pos;
+    vec2 new_pos = current_pos + velocityData.velocities[gl_GlobalInvocationID.x];
+
+    if (abs(new_pos.x) > 2000 || abs(new_pos.y) > 2000)
+        //new_pos = vec2(0.0, 0.0);
+        velocityData.velocities[gl_GlobalInvocationID.x] = -1 * velocityData.velocities[gl_GlobalInvocationID.x];
+
+    particleData.vertices[gl_GlobalInvocationID.x].pos = new_pos;
 }

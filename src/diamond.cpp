@@ -39,6 +39,7 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
     Assert(fragShaderPath != "");
     defaultVertexShader = vertShaderPath;
     defaultFragmentShader = fragShaderPath;
+    defaultMaxVertexCount = maxVertexCount;
 
     // init glfw & create window
     {
@@ -390,6 +391,23 @@ void diamond::UpdateShaders(const char* vertShaderPath, const char* fragShaderPa
     CreateGraphicsPipeline(vertShaderPath, fragShaderPath);
 }
 
+void diamond::UpdateVertexStructInfo(int _vertexSize, VkPrimitiveTopology _vertexTopology, std::vector<VkVertexInputAttributeDescription> (*_getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*_getVertexBindingDescription)())
+{
+    vertexSize = _vertexSize;
+    vertexTopology = _vertexTopology;
+    getVertexAttributeDescriptions = _getVertexAttributeDescriptions;
+    getVertexBindingDescription = _getVertexBindingDescription;
+
+    vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
+    vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
+
+    CreateVertexBuffer(defaultMaxVertexCount);
+
+    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr); // todo: move this out of pipeline
+    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
+}
+
 void diamond::UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo)
 {
     computePipelineInfo = createInfo;
@@ -441,14 +459,14 @@ void diamond::RunComputeShader()
     }
 }
 
-void diamond::BindVertices(const diamond_vertex* vertices, u32 vertexCount)
+void diamond::BindVertices(const void* vertices, u32 vertexCount)
 {
-    BindVertices(const_cast<diamond_vertex*>(vertices), vertexCount);
+    BindVertices(const_cast<void*>(vertices), vertexCount);
 }
 
-void diamond::BindVertices(diamond_vertex* vertices, u32 vertexCount)
+void diamond::BindVertices(void* vertices, u32 vertexCount)
 {
-    MapMemory((void*)vertices, sizeof(diamond_vertex), vertexCount, vertexBufferMemory, boundVertexCount);
+    MapMemory(vertices, vertexSize, vertexCount, vertexBufferMemory, boundVertexCount);
     boundVertexCount += vertexCount;
 }
 
@@ -481,6 +499,11 @@ void diamond::DrawIndexed(u32 indexCount, u32 vertexCount, int textureIndex, dia
 
     vkCmdPushConstants(renderPassBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(diamond_object_data), &data);
     vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, boundIndexCount - indexCount, boundVertexCount - vertexCount, 0);
+}
+
+void diamond::DrawFromCompute(u32 vertexCount)
+{
+    vkCmdDraw(renderPassBuffer, vertexCount, 1, 0, 0);
 }
 
 // todo: bake quad vertex & index data?
@@ -1057,9 +1080,13 @@ void diamond::RecreateCompute(diamond_compute_pipeline_create_info createInfo)
 
     computeBuffers.resize(createInfo.bufferCount);
     computeBuffersMemory.resize(createInfo.bufferCount);
+
     for (int i = 0; i < createInfo.bufferCount; i++)
     {
-        CreateBuffer(createInfo.bufferInfoList[i].size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, computeBuffers[i], computeBuffersMemory[i]);
+        VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        if (createInfo.bufferInfoList[i].bindVertexBuffer)
+            usageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        CreateBuffer(createInfo.bufferInfoList[i].size, usageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, computeBuffers[i], computeBuffersMemory[i]);
     }
 
     CreateComputeDescriptorSetLayout(createInfo.bufferCount);
@@ -1218,7 +1245,7 @@ void diamond::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemory
 
 void diamond::CreateVertexBuffer(int maxVertexCount)
 {
-    VkDeviceSize bufferSize = sizeof(diamond_vertex) * maxVertexCount;
+    VkDeviceSize bufferSize = vertexSize * maxVertexCount;
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 }
 
@@ -1238,8 +1265,8 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
         CreateShaderStage(fragShader, VK_SHADER_STAGE_FRAGMENT_BIT)
     };
 
-    auto bindingDescription = diamond_vertex::GetBindingDescription();
-    auto attributeDescriptions = diamond_vertex::GetAttributeDescriptions();
+    auto bindingDescription = getVertexBindingDescription();
+    auto attributeDescriptions = getVertexAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1250,7 +1277,7 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.topology = vertexTopology;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
     VkViewport viewport{};
@@ -1660,7 +1687,7 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix)
+void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix, int computeVertexBufferIndex)
 {
     cameraMode = camMode;
     cameraDimensions = camDimensions;
@@ -1693,9 +1720,11 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
     result = vkBeginCommandBuffer(renderPassBuffer, &secondaryBeginInfo);
     Assert(result == VK_SUCCESS);
 
-    VkBuffer vertexBuffers[] = { vertexBuffer };
     VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, vertexBuffers, offsets);
+    if (computeVertexBufferIndex == -1)
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &vertexBuffer, offsets);
+    else
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computeBuffers[computeVertexBufferIndex], offsets);
     vkCmdBindIndexBuffer(renderPassBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
     vkCmdBindDescriptorSets(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[nextImageIndex], 0, nullptr);
     vkCmdBindPipeline(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);

@@ -30,9 +30,10 @@ public:
     * @param cameraMode Specify whether to render the scene using a predefined perspective or orthographic view
     * @param cameraDimensions Dimensions to use for the projection if camera mode is orthographic frame independent
     * @param cameraViewMatrix Specify the view matrix of the camera
+    * @param computeVertexBufferIndex Leave as -1 for standard usage. If specified, the vertex buffer will be bound to the specified compute shader buffer instead
     * @see GenerateViewMatrix()
     */
-    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix);
+    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix, int computeVertexBufferIndex = -1);
 
     /*
     * Called at the end of every frame in the game loop
@@ -89,7 +90,9 @@ public:
     * @see BeginFrame()
     */
     void UpdateShaders(const char* vertShaderPath, const char* fragShaderPath);
-
+    
+    // see https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPrimitiveTopology.html
+    void UpdateVertexStructInfo(int vertexSize, VkPrimitiveTopology vertexTopology, std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*getVertexBindingDescription)());
     void RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination);
     void MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source);
     void UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo);
@@ -106,8 +109,8 @@ public:
     * @note Implementation is limited to only use the diamond_vertex structure, but that will change in the future
     * @see Draw() DrawIndexed() diamond_vertex
     */
-    void BindVertices(const diamond_vertex* vertices, uint32_t vertexCount);
-    void BindVertices(diamond_vertex* vertices, uint32_t vertexCount);
+    void BindVertices(const void* vertices, uint32_t vertexCount);
+    void BindVertices(void* vertices, uint32_t vertexCount);
 
     /*
     * Set the indices that will be used in the next DrawIndexed() call
@@ -154,6 +157,8 @@ public:
     */
     void DrawIndexed(uint32_t indexCount, uint32_t vertexCount, int textureIndex, diamond_transform objectTransform);
 
+    void DrawFromCompute(uint32_t vertexCount);
+
     /*
     * Draw a quad to the screen with a given transform
     * 
@@ -164,6 +169,7 @@ public:
     * @param quadTransform The world space transform of the quad
     * @param color The color applied to the quad
     * @see RegisterTexture() diamond_transform
+    * @warning This is is not compatible when a custom vertex structure is being used
     */
     void DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
 
@@ -182,6 +188,7 @@ public:
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
     * @param texCoords Array of texture coordinates that will be applied to each quad, top left and bottom right. This parameter is optional and will default to [0, 0] and [1, 1]
     * @see DrawQuadsOffsetScale() RegisterTexture() diamond_transform
+    * @warning This is is not compatible when a custom vertex structure is being used
     */
     void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
@@ -200,6 +207,7 @@ public:
     * @param colors Array of colors that will be applied to each quad. This parameter is optional and will default to no color applied (white)
     * @param texCoords Array of texture coordinates that will be applied to each quad, top left and bottom right. This parameter is optional and will default to [0, 0] and [1, 1]
     * @see DrawQuadsTransform() RegisterTexture() diamond_transform
+    * @warning This is is not compatible when a custom vertex structure is being used
     */
     void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
@@ -346,9 +354,14 @@ private:
     glm::vec2 cameraDimensions;
     const char* defaultVertexShader = "";
     const char* defaultFragmentShader = "";
+    int defaultMaxVertexCount = 0;
     int savedWindowSizeAndPos[4]; // size xy, pos xy
     std::vector<diamond_vertex> quadVertices;
     std::vector<uint16_t> quadIndices;
+    int vertexSize = sizeof(diamond_vertex);
+    VkPrimitiveTopology vertexTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
+    VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

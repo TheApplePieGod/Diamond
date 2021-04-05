@@ -68,9 +68,9 @@ struct diamond_vertex
     }
 
     // Internal use
-    static std::array<VkVertexInputAttributeDescription, 4> GetAttributeDescriptions()
+    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(4);
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -78,7 +78,7 @@ struct diamond_vertex
 
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(diamond_vertex, color);
 
         attributeDescriptions[2].binding = 0;
@@ -97,7 +97,14 @@ struct diamond_vertex
 
 struct diamond_compute_buffer_info
 {
-    int size;
+    diamond_compute_buffer_info(int _size, bool _bindVertexBuffer)
+    {
+        size = _size;
+        bindVertexBuffer = _bindVertexBuffer;
+    }
+
+    int size = 0;
+    bool bindVertexBuffer = false; // enable if this buffer should be compatible as a vertex buffer
 };
 
 // References
@@ -146,10 +153,52 @@ struct diamond_frame_buffer_object
     glm::mat4 viewProj;
 };
 
+// for the examples
+struct diamond_particle_vertex
+{
+    glm::vec2 pos; // Object space position of the vertex
+    glm::vec2 padding;
+    glm::vec4 color; // Color to be either rendered by itself or applied as a hue to the texture of the vertex
+
+    // Internal use
+    static VkVertexInputBindingDescription GetBindingDescription()
+    {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(diamond_particle_vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    // Internal use
+    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
+    {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(diamond_particle_vertex, pos);
+
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(diamond_particle_vertex, color);
+
+        return attributeDescriptions;
+    }
+};
+
 struct diamond_test_compute_buffer
 {
-    glm::vec2 pos[100];
+    glm::vec2 pos[100000];
 };
+
+struct diamond_test_compute_buffer2
+{
+    diamond_particle_vertex vertices[100000];
+};
+// ----------------------
 
 // Internal use. Can be acquired through the VulkanSwapChain() command
 struct diamond_swap_chain_info
