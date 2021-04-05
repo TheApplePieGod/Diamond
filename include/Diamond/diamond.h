@@ -96,7 +96,8 @@ public:
     void RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination);
     void MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source);
     void UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo);
-    void RunComputeShader();
+    void RunComputeShader(bool dirty);
+    glm::vec3 GetDeviceMaxWorkgroupCount();
 
     /*
     * Set the vertices that will be drawn in the next draw call
@@ -362,6 +363,7 @@ private:
     VkPrimitiveTopology vertexTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
     VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
+    VkPhysicalDeviceProperties physicalDeviceProperties;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -401,6 +403,8 @@ private:
     // compute
     std::vector<VkBuffer> computeBuffers;
     std::vector<VkDeviceMemory> computeBuffersMemory;
+    std::vector<VkBuffer> computeDeviceBuffers;
+    std::vector<VkDeviceMemory> computeDeviceBuffersMemory;
     std::vector<VkDescriptorSet> computeDescriptorSets;
     VkFence computeFence = VK_NULL_HANDLE;
     VkDescriptorPool computeDescriptorPool = VK_NULL_HANDLE;

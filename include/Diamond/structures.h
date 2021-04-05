@@ -97,14 +97,18 @@ struct diamond_vertex
 
 struct diamond_compute_buffer_info
 {
-    diamond_compute_buffer_info(int _size, bool _bindVertexBuffer)
+    diamond_compute_buffer_info(int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
     {
         size = _size;
         bindVertexBuffer = _bindVertexBuffer;
+        staging = _staging;
+        copyBackToCPU = _copyBackToCPU;
     }
 
     int size = 0;
     bool bindVertexBuffer = false; // enable if this buffer should be compatible as a vertex buffer
+    bool staging = false; // enable if this buffer should be copied to a strictly device local buffer after every map (note: when enabled, each buffer will take up two indexes)
+    bool copyBackToCPU = false; // if staging is enabled, enabling this will copy the device buffer back to local every frame for retrieval
 };
 
 // References
@@ -127,9 +131,9 @@ struct diamond_compute_pipeline_create_info
     int bufferCount = 0;
     const char* computeShaderPath = "";
     const char* entryFunctionName = "main";
-    int groupCountX = 1;
-    int groupCountY = 1;
-    int groupCountZ = 1;
+    uint32_t groupCountX = 1;
+    uint32_t groupCountY = 1;
+    uint32_t groupCountZ = 1;
     bool shouldBlockCPU = true;
 
     // for advanced use with integrating with different stages in the graphics pipeline

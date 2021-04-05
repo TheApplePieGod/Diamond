@@ -11,14 +11,15 @@ int main2(int argc, char** argv)
     
     Engine->Initialize(800, 600, 100000, 100000, "Diamond Basic Example", "../shaders/basic.vert.spv", "../shaders/basic.frag.spv");
 
-    std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false) };
+    int particleCount = 100000;
+    std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true, true) };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
-    std::vector<glm::vec2> computeData(100);
+    std::vector<glm::vec2> computeData(particleCount);
     cpCreateInfo.enabled = true;
     cpCreateInfo.bufferCount = cpBuffers.size();
     cpCreateInfo.bufferInfoList = cpBuffers.data();
     cpCreateInfo.computeShaderPath = "../shaders/basic.comp.spv";
-    cpCreateInfo.groupCountX = floor(sizeof(diamond_test_compute_buffer) / sizeof(glm::vec2));
+    cpCreateInfo.groupCountX = ceil(particleCount / 64.0);
     Engine->UpdateComputePipeline(cpCreateInfo);
     Engine->MapComputeData(0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // map inital data
 
@@ -46,7 +47,7 @@ int main2(int argc, char** argv)
         Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
         
         // Compute shader pipeline example
-        Engine->RunComputeShader();
+        Engine->RunComputeShader(false);
         Engine->RetrieveComputeData(0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // retrieve updated data
         //std::cout << computeData[0].x; // debug print
 
@@ -76,26 +77,26 @@ int main2(int argc, char** argv)
     return 0;
 }
 
-// particle simulation example6
+// particle simulation example
 int main(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
-    Engine->Initialize(800, 600, 100000, 1000, "Diamond Particle Simulation Example", "../shaders/sim.vert.spv", "../shaders/sim.frag.spv");
+    Engine->Initialize(800, 600, 1000000, 1, "Diamond Particle Simulation Example", "../shaders/sim.vert.spv", "../shaders/sim.frag.spv");
     Engine->UpdateVertexStructInfo(sizeof(diamond_particle_vertex), VK_PRIMITIVE_TOPOLOGY_POINT_LIST, diamond_particle_vertex::GetAttributeDescriptions, diamond_particle_vertex::GetBindingDescription);
 
+    int particleCount = 1000000;
+    glm::vec3 deviceLimits = Engine->GetDeviceMaxWorkgroupCount();
+
     std::array<diamond_compute_buffer_info, 2> cpBuffers {
-        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true),
-        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false) // used as the buffer for velocities
+        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true, true, false),
+        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, false, false) // used as the buffer for velocities
     };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
-    std::vector<diamond_particle_vertex> computeData(100000);
-    std::vector<glm::vec2> velocities(100000);
     cpCreateInfo.enabled = true;
     cpCreateInfo.bufferCount = cpBuffers.size();
-    cpCreateInfo.bufferInfoList = cpBuffers.data();
-    cpCreateInfo.computeShaderPath = "../shaders/sim.comp.spv";
-    cpCreateInfo.groupCountX = floor(sizeof(diamond_test_compute_buffer2) / sizeof(diamond_particle_vertex));
+    cpCreateInfo.bufferInfoList = cpBuffers.data();cpCreateInfo.computeShaderPath = "../shaders/sim.comp.spv";
+    cpCreateInfo.groupCountX = ceil(particleCount / 64.0);
     cpCreateInfo.shouldBlockCPU = false;
     cpCreateInfo.preRunSyncFlags = {
         0, 0, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
@@ -105,7 +106,9 @@ int main(int argc, char** argv)
     };
 
     // initialze particle data
-    for (int i = 0; i < 100000; i++)
+    std::vector<diamond_particle_vertex> computeData(particleCount);
+    std::vector<glm::vec2> velocities(particleCount);
+    for (int i = 0; i < computeData.size(); i++)
     {
         computeData[i].pos = glm::vec2(rand() % 2000 - 1000, rand() % 2000 - 1000);
         computeData[i].color = glm::vec4((double) rand() / (RAND_MAX), (double) rand() / (RAND_MAX), (double) rand() / (RAND_MAX), 1.0);
@@ -118,21 +121,38 @@ int main(int argc, char** argv)
 
     f32 deltaTime = 0.f;
     f32 fps = 0.f;
+    int frameCount = 0;
 
+    bool useCompute = true; // disable to run the same code on the cpu to compare performance
     while (Engine->IsRunning())
     {
         auto start = std::chrono::high_resolution_clock::now();
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)), 0);
+        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)), useCompute ? 0 : -1);
         
-        Engine->RunComputeShader();
-
-        //Engine->DrawFromCompute(100000); // we still need to tell vulkan to draw the particles
+        if (useCompute)
+        {
+            Engine->RunComputeShader(frameCount == 0);
+            Engine->DrawFromCompute(computeData.size()); // we still need to tell vulkan to draw the particles
+        }
+        else
+        {
+            for (int i = 0; i < computeData.size(); i++)
+            {
+                computeData[i].pos += velocities[i];
+                if (abs(computeData[i].pos.x) > 2000 || abs(computeData[i].pos.y) > 2000)
+                    velocities[i] *= -1;
+            }
+            diamond_transform trans;
+            Engine->BindVertices(computeData.data(), computeData.size());
+            Engine->Draw(computeData.size(), -1, trans);
+        }
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
         auto stop = std::chrono::high_resolution_clock::now();
         deltaTime = std::max((f32)(std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)).count(), 0.5f);
         fps = 1.f / (deltaTime / 1000.f);
-        std::cout << "FPS: " << fps << std::endl;
+        frameCount++;
+        //std::cout << "FPS: " << fps << std::endl;
     }
 
     Engine->Cleanup();

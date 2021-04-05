@@ -1,5 +1,7 @@
 #version 450
 
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
 struct vertex
 {
   vec2 pos;
@@ -19,12 +21,8 @@ layout(set = 0, binding = 1, std430) buffer VelocityData
 
 void main()
 {
-    vec2 current_pos = particleData.vertices[gl_GlobalInvocationID.x].pos;
-    vec2 new_pos = current_pos + velocityData.velocities[gl_GlobalInvocationID.x];
+    particleData.vertices[gl_GlobalInvocationID.x].pos += velocityData.velocities[gl_GlobalInvocationID.x];
 
-    if (abs(new_pos.x) > 2000 || abs(new_pos.y) > 2000)
-        //new_pos = vec2(0.0, 0.0);
-        velocityData.velocities[gl_GlobalInvocationID.x] = -1 * velocityData.velocities[gl_GlobalInvocationID.x];
-
-    particleData.vertices[gl_GlobalInvocationID.x].pos = new_pos;
+    if (abs(particleData.vertices[gl_GlobalInvocationID.x].pos.x) > 2000 || abs(particleData.vertices[gl_GlobalInvocationID.x].pos.y) > 2000)
+        velocityData.velocities[gl_GlobalInvocationID.x] *= -1;
 }

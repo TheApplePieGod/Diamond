@@ -12,6 +12,6 @@ layout(location = 0) out vec4 fragColor;
 
 void main() {
     gl_Position = frameBuffer.viewProj * vec4(inPosition, 0.0, 1.0);
-    gl_PointSize = 10;
+    gl_PointSize = 2;
     fragColor = inColor;
 }

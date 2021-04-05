@@ -146,6 +146,7 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
             if (IsDeviceSuitable(device))
             {
                 physicalDevice = device;
+                vkGetPhysicalDeviceProperties(device, &physicalDeviceProperties);
                 msaaSamples = GetMaxSampleCount();
                 break;
             }
@@ -427,7 +428,7 @@ void diamond::MapComputeData(int bufferIndex, int dataOffset, int dataSize, void
     MapMemory(source, 1, dataSize, computeBuffersMemory[bufferIndex], dataOffset);
 }
 
-void diamond::RunComputeShader()
+void diamond::RunComputeShader(bool dirty)
 {
     if (computePipelineInfo.enabled) // run compute pipeline if enabled
     {
@@ -440,8 +441,39 @@ void diamond::RunComputeShader()
         vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
         vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSets[0], 0, nullptr);
 
+        if (dirty)
+        {
+            for (int i = 0; i < computePipelineInfo.bufferCount; i++)
+            {
+                if (computePipelineInfo.bufferInfoList[i].staging)
+                {
+                    VkBufferCopy copy = {};
+                    copy.size = computePipelineInfo.bufferInfoList[i].size;
+                    
+                    vkCmdCopyBuffer(computeBuffer, computeBuffers[i], computeDeviceBuffers[i], 1, &copy);
+                }
+            }
+        }
+
         // dispatch compute pipeline
-        vkCmdDispatch(computeBuffer, computePipelineInfo.groupCountX, computePipelineInfo.groupCountY, computePipelineInfo.groupCountZ);
+        vkCmdDispatch(
+            computeBuffer,
+            std::min(computePipelineInfo.groupCountX, physicalDeviceProperties.limits.maxComputeWorkGroupCount[0]),
+            std::min(computePipelineInfo.groupCountY, physicalDeviceProperties.limits.maxComputeWorkGroupCount[1]),
+            std::min(computePipelineInfo.groupCountZ, physicalDeviceProperties.limits.maxComputeWorkGroupCount[2])
+        );
+
+        for (int i = 0; i < computePipelineInfo.bufferCount; i++)
+        {
+            if (computePipelineInfo.bufferInfoList[i].staging && computePipelineInfo.bufferInfoList[i].copyBackToCPU)
+            {
+                VkBufferCopy copy = {};
+                copy.size = computePipelineInfo.bufferInfoList[i].size;
+                
+                vkCmdCopyBuffer(computeBuffer, computeDeviceBuffers[i], computeBuffers[i], 1, &copy);
+            }
+        }
+
         MemoryBarrier(computeBuffer, computePipelineInfo.postRunSyncFlags.srcAccessMask, computePipelineInfo.postRunSyncFlags.dstAccessMask, computePipelineInfo.postRunSyncFlags.srcStageMask, computePipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
         result = vkEndCommandBuffer(computeBuffer);
 
@@ -457,6 +489,11 @@ void diamond::RunComputeShader()
         if (computePipelineInfo.shouldBlockCPU)
             vkWaitForFences(logicalDevice, 1, &computeFence, true, UINT64_MAX); // optionally wait for queue fence
     }
+}
+
+glm::vec3 diamond::GetDeviceMaxWorkgroupCount()
+{
+    return glm::vec3(physicalDeviceProperties.limits.maxComputeWorkGroupCount[0], physicalDeviceProperties.limits.maxComputeWorkGroupCount[1], physicalDeviceProperties.limits.maxComputeWorkGroupCount[2]);
 }
 
 void diamond::BindVertices(const void* vertices, u32 vertexCount)
@@ -978,7 +1015,10 @@ void diamond::CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffe
     std::vector<VkWriteDescriptorSet> descriptorWrites(bufferCount);
     for (int i = 0; i < bufferCount; i++)
     {
-        descriptorList[i].buffer = computeBuffers[i];
+        if (bufferInfo[i].staging)
+            descriptorList[i].buffer = computeDeviceBuffers[i];
+        else
+            descriptorList[i].buffer = computeBuffers[i];
         descriptorList[i].offset = 0;  
         descriptorList[i].range = bufferInfo[i].size;
 
@@ -1069,6 +1109,8 @@ void diamond::CleanupCompute()
     {
         vkDestroyBuffer(logicalDevice, computeBuffers[i], nullptr);
         vkFreeMemory(logicalDevice, computeBuffersMemory[i], nullptr);
+        vkDestroyBuffer(logicalDevice, computeDeviceBuffers[i], nullptr);
+        vkFreeMemory(logicalDevice, computeDeviceBuffersMemory[i], nullptr);
     }
 }
 
@@ -1080,13 +1122,23 @@ void diamond::RecreateCompute(diamond_compute_pipeline_create_info createInfo)
 
     computeBuffers.resize(createInfo.bufferCount);
     computeBuffersMemory.resize(createInfo.bufferCount);
+    computeDeviceBuffers.resize(createInfo.bufferCount);
+    computeDeviceBuffersMemory.resize(createInfo.bufferCount);
 
     for (int i = 0; i < createInfo.bufferCount; i++)
     {
-        VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        VkBufferUsageFlags baseFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         if (createInfo.bufferInfoList[i].bindVertexBuffer)
-            usageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        CreateBuffer(createInfo.bufferInfoList[i].size, usageFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, computeBuffers[i], computeBuffersMemory[i]);
+            baseFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+        VkBufferUsageFlags hostFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+        CreateBuffer(createInfo.bufferInfoList[i].size, hostFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, computeBuffers[i], computeBuffersMemory[i]);
+
+        if (createInfo.bufferInfoList[i].staging)
+        {
+            VkBufferUsageFlags deviceFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0);
+            CreateBuffer(createInfo.bufferInfoList[i].size, deviceFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, computeDeviceBuffers[i], computeDeviceBuffersMemory[i]);
+        }
     }
 
     CreateComputeDescriptorSetLayout(createInfo.bufferCount);
@@ -1617,7 +1669,6 @@ bool diamond::IsDeviceSuitable(VkPhysicalDevice device)
     deviceFeatures2.pNext = &indexingFeatures;
     vkGetPhysicalDeviceFeatures2(device, &deviceFeatures2);
 
-
     bool extensionsSupported = CheckDeviceExtensionSupport(device);
     bool swapChainAdequate = false;
     if (extensionsSupported)
@@ -1723,6 +1774,8 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
     VkDeviceSize offsets[] = { 0 };
     if (computeVertexBufferIndex == -1)
         vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &vertexBuffer, offsets);
+    else if (computePipelineInfo.bufferInfoList[computeVertexBufferIndex].staging)
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computeDeviceBuffers[computeVertexBufferIndex], offsets);
     else
         vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computeBuffers[computeVertexBufferIndex], offsets);
     vkCmdBindIndexBuffer(renderPassBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
