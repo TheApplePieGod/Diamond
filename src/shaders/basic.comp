@@ -1,0 +1,12 @@
+#version 450
+
+layout(set = 0, binding = 0, std430) buffer Positions
+{
+    vec2 pos[];
+} positions;
+
+void main()
+{
+    vec2 current_pos = positions.pos[gl_GlobalInvocationID.x];
+    positions.pos[gl_GlobalInvocationID.x] = current_pos - vec2(1.0, 1.0);
+}

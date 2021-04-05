@@ -90,6 +90,11 @@ public:
     */
     void UpdateShaders(const char* vertShaderPath, const char* fragShaderPath);
 
+    void RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination);
+    void MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source);
+    void UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo);
+    void RunComputeShader();
+
     /*
     * Set the vertices that will be drawn in the next draw call
     * 
@@ -276,21 +281,28 @@ public:
 private:
 
     // private documentation coming soon
+    void MemoryBarrier(VkCommandBuffer cmd, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask);
     void ConfigureValidationLayers();
     void CreateGraphicsPipeline(const char* vertShaderPath, const char* fragShaderPath);
+    void CreateComputePipeline(const char* compShaderPath, const char* entryFunctionName);
     void CreateRenderPass();
     void CreateSwapChain();
     void CreateFrameBuffers();
     void CreateCommandBuffers();
     void RecreateSwapChain();
+    void RecreateCompute(diamond_compute_pipeline_create_info createInfo);
     void CleanupSwapChain();
+    void CleanupCompute();
     void CreateVertexBuffer(int maxVertexCount);
     void CreateIndexBuffer(int maxIndexCount);
     void CreateDescriptorSetLayout();
+    void CreateComputeDescriptorSetLayout(int bufferCount);
     void CreateUniformBuffers();
     void UpdatePerFrameBuffer(uint32_t imageIndex);
     void CreateDescriptorPool();
+    void CreateComputeDescriptorPool(int bufferCount);
     void CreateDescriptorSets();
+    void CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffer_info* bufferInfo);
     void CreateTextureSampler();
     void CreateColorResources();
     void Present();
@@ -335,12 +347,15 @@ private:
     const char* defaultVertexShader = "";
     const char* defaultFragmentShader = "";
     int savedWindowSizeAndPos[4]; // size xy, pos xy
+    std::vector<diamond_vertex> quadVertices;
+    std::vector<uint16_t> quadIndices;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
+    VkQueue computeQueue = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
@@ -369,6 +384,18 @@ private:
     VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
+    
+    // compute
+    std::vector<VkBuffer> computeBuffers;
+    std::vector<VkDeviceMemory> computeBuffersMemory;
+    std::vector<VkDescriptorSet> computeDescriptorSets;
+    VkFence computeFence = VK_NULL_HANDLE;
+    VkDescriptorPool computeDescriptorPool = VK_NULL_HANDLE;
+    VkPipeline computePipeline = VK_NULL_HANDLE;
+    VkCommandBuffer computeBuffer = {};
+    VkPipelineLayout computePipelineLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout computeDescriptorSetLayout = VK_NULL_HANDLE;
+    diamond_compute_pipeline_create_info computePipelineInfo = {};
 
     diamond_swap_chain_info swapChain;
 };

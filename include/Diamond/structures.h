@@ -95,10 +95,60 @@ struct diamond_vertex
     }
 };
 
+struct diamond_compute_buffer_info
+{
+    int size;
+};
+
+// References
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkAccessFlagBits.html
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPipelineStageFlagBits.html
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkMemoryBarrier.html
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdPipelineBarrier.html
+struct diamond_compute_memory_synchronization
+{
+    VkAccessFlags srcAccessMask;
+    VkAccessFlags dstAccessMask;
+    VkPipelineStageFlags srcStageMask;
+    VkPipelineStageFlags dstStageMask;
+};
+
+struct diamond_compute_pipeline_create_info
+{
+    bool enabled = false;
+    diamond_compute_buffer_info* bufferInfoList = nullptr;
+    int bufferCount = 0;
+    const char* computeShaderPath = "";
+    const char* entryFunctionName = "main";
+    int groupCountX = 1;
+    int groupCountY = 1;
+    int groupCountZ = 1;
+    bool shouldBlockCPU = true;
+
+    // for advanced use with integrating with different stages in the graphics pipeline
+    diamond_compute_memory_synchronization preRunSyncFlags = {
+        VK_ACCESS_HOST_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+    };
+    diamond_compute_memory_synchronization postRunSyncFlags = {
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_HOST_READ_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT
+    };
+};
+
 // Internal use
 struct diamond_frame_buffer_object
 {
     glm::mat4 viewProj;
+};
+
+struct diamond_test_compute_buffer
+{
+    glm::vec2 pos[100];
 };
 
 // Internal use. Can be acquired through the VulkanSwapChain() command
@@ -117,12 +167,14 @@ struct diamond_queue_family_indices
 {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
+    std::optional<uint32_t> computeFamily;
     
     bool IsComplete()
     {
         return (
             graphicsFamily.has_value() &&
-            presentFamily.has_value()
+            presentFamily.has_value() &&
+            computeFamily.has_value()
         );
     }
 };
