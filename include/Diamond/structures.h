@@ -99,6 +99,9 @@ struct diamond_vertex
 
 struct diamond_compute_buffer_info
 {
+    diamond_compute_buffer_info()
+    {}
+
     diamond_compute_buffer_info(int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
     {
         identifier = "";
@@ -131,6 +134,9 @@ struct diamond_compute_buffer_info
 
 struct diamond_compute_image_info
 {
+    diamond_compute_image_info()
+    {}
+    
     diamond_compute_image_info(int _width, int _height, int _precision)
     {
         identifier = "";

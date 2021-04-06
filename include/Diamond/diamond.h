@@ -1,6 +1,11 @@
 #pragma once
 #include "structures.h"
 
+#if DIAMOND_IMGUI
+#include "imgui_impl_vulkan.h"
+#include "imgui_impl_glfw.h"
+#endif
+
 // Main engine class
 class diamond
 {
@@ -96,7 +101,8 @@ public:
     void UpdateVertexStructInfo(int vertexSize, VkPrimitiveTopology vertexTopology, std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*getVertexBindingDescription)());
     void RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination);
     void MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source);
-    void CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
+    int CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
+    int ComputePipelineFirstTextureIndex(int pipelineIndex);
     void RunComputeShader(int pipelineIndex, bool dirty, void* pushConsantsData = nullptr);
     glm::vec3 GetDeviceMaxWorkgroupCount();
 
@@ -281,6 +287,8 @@ public:
     */
     inline std::tuple<VkInstance, VkPhysicalDevice, VkDevice> VulkanComponents() { return std::make_tuple(instance, physicalDevice, logicalDevice); };
 
+    inline std::tuple<VkRenderPass, VkCommandBuffer> VulkanRenderComponents() { return std::make_tuple(renderPass, renderPassBuffer); };
+
     /*
     * Get the vulkan swap chain tied to the engine window
     * 
@@ -291,6 +299,9 @@ public:
     * @see diamond_swap_chain_info
     */
     inline diamond_swap_chain_info VulkanSwapChain() { return swapChain; };
+
+    VkCommandBuffer BeginSingleTimeCommands();
+    void EndSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 private:
 
@@ -320,6 +331,13 @@ private:
     void CreateTextureSampler();
     void CreateColorResources();
     void Present();
+
+    #if DIAMOND_IMGUI
+    void CleanupImGui();
+    void CreateImGui();
+    ImGui_ImplVulkan_InitInfo ImGuiInitInfo();
+    #endif
+
     VkPipelineShaderStageCreateInfo CreateShaderStage(VkShaderModule shaderModule, VkShaderStageFlagBits stage, const char* entrypoint = "main");
     VkShaderModule CreateShaderModule(const char* ShaderPath);
     diamond_queue_family_indices GetQueueFamilies(VkPhysicalDevice device);
@@ -337,8 +355,6 @@ private:
     VkImageView CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory);
     VkImageView CreateTextureImage(void* data, VkImage& image, VkDeviceMemory& imageMemory, int width, int height);
     void CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
-    VkCommandBuffer BeginSingleTimeCommands();
-    void EndSingleTimeCommands(VkCommandBuffer commandBuffer);
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
     VkImageView CreateImageView(VkImage image, VkFormat format, uint32_t mipLevels);
     glm::mat4 GenerateModelMatrix(diamond_transform objectTransform);

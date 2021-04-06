@@ -9,10 +9,12 @@ project(
 include_directories("src/lib/glfw-3.3.2.bin.WIN64/include")
 include_directories("src/lib/glm")
 include_directories("src/lib/stb")
+include_directories("src/lib/imgui")
 include_directories("include")
 include_directories("C:/VulkanSDK/1.2.162.1/Include")
 
 add_compile_definitions(DIAMOND_DEBUG)
+add_compile_definitions(DIAMOND_IMGUI)
 
 # build shaders as well
 add_custom_command(
@@ -22,13 +24,15 @@ add_custom_command(
 )
 
 file(GLOB SOURCES "src/*.cpp")
-add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
-#add_library(Diamond ${SOURCES})
+#add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
+add_library(Diamond ${SOURCES})
 
 find_library(glfw3 glfw3 "src/lib/glfw-3.3.2.bin.WIN64/lib-vc2019")
 find_library(vulkan-1 vulkan-1 "C:/VulkanSDK/1.2.162.1/Lib")
+find_library(imgui imgui "src/lib/imgui")
 target_link_libraries(Diamond "${glfw3}")
 target_link_libraries(Diamond "${vulkan-1}")
+target_link_libraries(Diamond "${imgui}")
 
 # Tell C++ compiler to use C++20 features.
 target_compile_features(Diamond PUBLIC cxx_std_20)

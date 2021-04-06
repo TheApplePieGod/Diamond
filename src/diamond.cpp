@@ -176,7 +176,6 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
         VkPhysicalDeviceFeatures deviceFeatures{};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
-        deviceFeatures.shaderFloat64 = VK_TRUE;
         
         VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
         indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
@@ -242,6 +241,13 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
     CreateDescriptorPool();
     CreateDescriptorSets();
 
+    // setup imgui
+    #if DIAMOND_IMGUI
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+    CreateImGui();
+    #endif
     // compute pipeline (disabled be default)
     //RecreateCompute(computePipelineInfo);
 
@@ -380,11 +386,19 @@ void diamond::SyncTextureUpdates()
     vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
 
+    #if DIAMOND_IMGUI
+    CleanupImGui();
+    #endif
+
     // recreate bindings
     CreateDescriptorSetLayout();
     CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateDescriptorPool();
     CreateDescriptorSets();
+
+    #if DIAMOND_IMGUI
+    CreateImGui();
+    #endif
 }
 
 void diamond::UpdateShaders(const char* vertShaderPath, const char* fragShaderPath)
@@ -411,12 +425,41 @@ void diamond::UpdateVertexStructInfo(int _vertexSize, VkPrimitiveTopology _verte
     CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
 }
 
-void diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createInfo)
+int diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createInfo)
 {
     diamond_compute_pipeline pipeline = {};
     pipeline.pipelineInfo = createInfo;
+
+    // copy data
+    if (pipeline.pipelineInfo.bufferCount > 0)
+    {
+        Assert(createInfo.bufferInfoList != nullptr);
+        pipeline.pipelineInfo.bufferInfoList = new diamond_compute_buffer_info[pipeline.pipelineInfo.bufferCount];
+        for (int i = 0; i < pipeline.pipelineInfo.bufferCount; i++)
+        {
+            pipeline.pipelineInfo.bufferInfoList[i] = createInfo.bufferInfoList[i];
+        }
+    }
+    if (pipeline.pipelineInfo.imageCount > 0)
+    {
+        Assert(createInfo.imageInfoList != nullptr);
+        pipeline.pipelineInfo.imageInfoList = new diamond_compute_image_info[pipeline.pipelineInfo.imageCount];
+        for (int i = 0; i < pipeline.pipelineInfo.imageCount; i++)
+        {
+            pipeline.pipelineInfo.imageInfoList[i] = createInfo.imageInfoList[i];
+        }
+    }
+
     RecreateCompute(pipeline, createInfo);
     computePipelines.push_back(pipeline);
+    return computePipelines.size() - 1;
+}
+
+int diamond::ComputePipelineFirstTextureIndex(int pipelineIndex)
+{
+    if (computePipelines[pipelineIndex].pipelineInfo.imageCount == 0)
+        return -1;
+    return computePipelines[pipelineIndex].textureIndexes[0];
 }
 
 void diamond::RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination)
@@ -932,17 +975,21 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
 
 void diamond::CreateDescriptorPool()
 {
-    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    std::array<VkDescriptorPoolSize, 3> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<u32>(swapChain.swapChainImages.size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<u32>(swapChain.swapChainImages.size() * textureArray.size());
 
+    // for imgui
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[2].descriptorCount = static_cast<u32>(swapChain.swapChainImages.size());
+
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<u32>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<u32>(swapChain.swapChainImages.size());
+    poolInfo.maxSets = static_cast<u32>(swapChain.swapChainImages.size()) + 1;
     poolInfo.flags = 0;
 
     VkResult result = vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &descriptorPool);
@@ -1077,6 +1124,40 @@ void diamond::CreateComputeDescriptorSets(diamond_compute_pipeline& pipeline, in
     vkUpdateDescriptorSets(logicalDevice, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
+#if DIAMOND_IMGUI
+void diamond::CleanupImGui()
+{
+    ImGui_ImplVulkan_Shutdown();
+}
+
+void diamond::CreateImGui()
+{
+    ImGui_ImplVulkan_InitInfo initInfo = ImGuiInitInfo();
+    ImGui_ImplVulkan_Init(&initInfo, renderPass);
+    VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
+    ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+    EndSingleTimeCommands(commandBuffer);
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+}
+
+ImGui_ImplVulkan_InitInfo diamond::ImGuiInitInfo() {
+    ImGui_ImplVulkan_InitInfo info = {};
+    info.Instance = instance;
+    info.PhysicalDevice = physicalDevice;
+    info.Device = logicalDevice;
+    info.QueueFamily = GetQueueFamilies(physicalDevice).graphicsFamily.value();
+    info.Queue = presentQueue;
+    info.PipelineCache = VK_NULL_HANDLE;
+    info.DescriptorPool = descriptorPool;
+    info.Allocator = NULL;
+    info.MinImageCount = 2;
+    info.ImageCount = swapChain.swapChainImages.size();
+    info.CheckVkResultFn = NULL;
+    info.MSAASamples = msaaSamples;
+    return info;
+};
+#endif
+
 void diamond::CleanupSwapChain()
 {
     for (int i = 0; i < swapChain.swapChainFrameBuffers.size(); i++)
@@ -1107,6 +1188,10 @@ void diamond::CleanupSwapChain()
     }
 
     vkDestroySwapchainKHR(logicalDevice, swapChain.swapChain, nullptr);
+
+    #if DIAMOND_IMGUI
+    CleanupImGui();
+    #endif
 }
 
 void diamond::RecreateSwapChain()
@@ -1139,6 +1224,10 @@ void diamond::RecreateSwapChain()
     CreateDescriptorPool();
     CreateDescriptorSets();
     CreateCommandBuffers();
+
+    #if DIAMOND_IMGUI
+    CreateImGui();
+    #endif
 }
 
 void diamond::CleanupCompute(diamond_compute_pipeline& pipeline)
@@ -1709,7 +1798,7 @@ void diamond::CreateRenderPass()
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.srcAccessMask = 0;
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, colorAttachmentResolve };
     VkRenderPassCreateInfo renderPassInfo{};
@@ -1913,6 +2002,12 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
         shouldPresent = true;
     }
 
+    #if DIAMOND_IMGUI
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    #endif
+
     // start recording the render command buffer
     VkCommandBufferInheritanceInfo inheritanceInfo{};
     inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
@@ -1946,6 +2041,11 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
 
 void diamond::EndFrame(glm::vec4 clearColor)
 {
+    #if DIAMOND_IMGUI
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), renderPassBuffer);
+    #endif
+
     VkResult result = vkEndCommandBuffer(renderPassBuffer);
     Assert(result == VK_SUCCESS);
 
@@ -2055,6 +2155,12 @@ void diamond::Present()
 void diamond::Cleanup()
 {
     vkDeviceWaitIdle(logicalDevice);
+
+    #if DIAMOND_IMGUI
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+    #endif
 
     CleanupSwapChain();
 
