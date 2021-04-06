@@ -30,10 +30,11 @@ public:
     * @param cameraMode Specify whether to render the scene using a predefined perspective or orthographic view
     * @param cameraDimensions Dimensions to use for the projection if camera mode is orthographic frame independent
     * @param cameraViewMatrix Specify the view matrix of the camera
+    * @param computePipelineIndex Leave as -1 for standard usage. If specified, see computeVertexBufferIndex
     * @param computeVertexBufferIndex Leave as -1 for standard usage. If specified, the vertex buffer will be bound to the specified compute shader buffer instead
     * @see GenerateViewMatrix()
     */
-    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix, int computeVertexBufferIndex = -1);
+    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix, int computePipelineIndex = -1, int computeVertexBufferIndex = -1);
 
     /*
     * Called at the end of every frame in the game loop
@@ -93,10 +94,10 @@ public:
     
     // see https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPrimitiveTopology.html
     void UpdateVertexStructInfo(int vertexSize, VkPrimitiveTopology vertexTopology, std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*getVertexBindingDescription)());
-    void RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination);
-    void MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source);
-    void UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo);
-    void RunComputeShader(bool dirty, void* pushConsantsData = nullptr);
+    void RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination);
+    void MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source);
+    void CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
+    void RunComputeShader(int pipelineIndex, bool dirty, void* pushConsantsData = nullptr);
     glm::vec3 GetDeviceMaxWorkgroupCount();
 
     /*
@@ -297,25 +298,25 @@ private:
     void MemoryBarrier(VkCommandBuffer cmd, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask);
     void ConfigureValidationLayers();
     void CreateGraphicsPipeline(const char* vertShaderPath, const char* fragShaderPath);
-    void CreateComputePipeline(const char* compShaderPath, const char* entryFunctionName);
+    void CreateComputePipeline(diamond_compute_pipeline& pipeline, const char* compShaderPath, const char* entryFunctionName);
     void CreateRenderPass();
     void CreateSwapChain();
     void CreateFrameBuffers();
     void CreateCommandBuffers();
     void RecreateSwapChain();
-    void RecreateCompute(diamond_compute_pipeline_create_info createInfo);
+    void RecreateCompute(diamond_compute_pipeline& pipeline, diamond_compute_pipeline_create_info createInfo);
     void CleanupSwapChain();
-    void CleanupCompute();
+    void CleanupCompute(diamond_compute_pipeline& pipeline);
     void CreateVertexBuffer(int maxVertexCount);
     void CreateIndexBuffer(int maxIndexCount);
     void CreateDescriptorSetLayout();
-    void CreateComputeDescriptorSetLayout(int bufferCount, int imageCount);
+    void CreateComputeDescriptorSetLayout(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount);
     void CreateUniformBuffers();
     void UpdatePerFrameBuffer(uint32_t imageIndex);
     void CreateDescriptorPool();
-    void CreateComputeDescriptorPool(int bufferCount, int imageCount);
+    void CreateComputeDescriptorPool(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount);
     void CreateDescriptorSets();
-    void CreateComputeDescriptorSets(int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo);
+    void CreateComputeDescriptorSets(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo);
     void CreateTextureSampler();
     void CreateColorResources();
     void Present();
@@ -409,19 +410,9 @@ private:
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     
     // compute
-    std::vector<VkBuffer> computeBuffers;
-    std::vector<VkDeviceMemory> computeBuffersMemory;
-    std::vector<VkBuffer> computeDeviceBuffers;
-    std::vector<VkDeviceMemory> computeDeviceBuffersMemory;
-    std::vector<VkDescriptorSet> computeDescriptorSets;
-    std::vector<int> computeTextureIndexes;
+    std::vector<diamond_compute_pipeline> computePipelines;
     VkFence computeFence = VK_NULL_HANDLE;
-    VkDescriptorPool computeDescriptorPool = VK_NULL_HANDLE;
-    VkPipeline computePipeline = VK_NULL_HANDLE;
     VkCommandBuffer computeBuffer = {};
-    VkPipelineLayout computePipelineLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout computeDescriptorSetLayout = VK_NULL_HANDLE;
-    diamond_compute_pipeline_create_info computePipelineInfo = {};
 
     diamond_swap_chain_info swapChain;
 };

@@ -101,12 +101,28 @@ struct diamond_compute_buffer_info
 {
     diamond_compute_buffer_info(int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
     {
+        identifier = "";
+        size = _size;
+        bindVertexBuffer = _bindVertexBuffer;
+        staging = _staging;
+        copyBackToCPU = _copyBackToCPU;
+    }
+    
+    diamond_compute_buffer_info(const char* _identifier, int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
+    {
+        identifier = _identifier;
         size = _size;
         bindVertexBuffer = _bindVertexBuffer;
         staging = _staging;
         copyBackToCPU = _copyBackToCPU;
     }
 
+    diamond_compute_buffer_info(const char* _identifier)
+    {
+        identifier = _identifier;
+    }
+
+    const char* identifier = ""; // used when creating new pipelines which should access existing buffers
     int size = 0;
     bool bindVertexBuffer = false; // enable if this buffer should be compatible as a vertex buffer
     bool staging = false; // enable if this buffer should be copied to a strictly device local buffer after every map (note: when enabled, each buffer will take up two indexes)
@@ -115,14 +131,31 @@ struct diamond_compute_buffer_info
 
 struct diamond_compute_image_info
 {
-    diamond_compute_image_info(int _width, int _height)
+    diamond_compute_image_info(int _width, int _height, int _precision)
     {
+        identifier = "";
         width = _width;
         height = _height;
+        precision = _precision;
     }
 
+    diamond_compute_image_info(const char* _identifier, int _width, int _height, int _precision)
+    {
+        identifier = _identifier;
+        width = _width;
+        height = _height;
+        precision = _precision;
+    }
+
+    diamond_compute_image_info(const char* _identifier)
+    {
+        identifier = _identifier;
+    }
+
+    const char* identifier = ""; // used when creating new pipelines which should access existing images
     int width = 0;
     int height = 0;
+    int precision = 8; // 8 16 32 64
 };
 
 // References
@@ -263,4 +296,19 @@ struct diamond_swap_chain_support_details
     VkSurfaceCapabilitiesKHR capabilities;
     std::vector<VkSurfaceFormatKHR> formats;
     std::vector<VkPresentModeKHR> presentModes;
+};
+
+struct diamond_compute_pipeline
+{
+    std::vector<VkBuffer> buffers;
+    std::vector<VkDeviceMemory> buffersMemory;
+    std::vector<VkBuffer> deviceBuffers;
+    std::vector<VkDeviceMemory> deviceBuffersMemory;
+    std::vector<VkDescriptorSet> descriptorSets;
+    std::vector<int> textureIndexes;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+    diamond_compute_pipeline_create_info pipelineInfo = {};
 };

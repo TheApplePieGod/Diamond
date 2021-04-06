@@ -411,53 +411,57 @@ void diamond::UpdateVertexStructInfo(int _vertexSize, VkPrimitiveTopology _verte
     CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
 }
 
-void diamond::UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo)
+void diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createInfo)
 {
-    computePipelineInfo = createInfo;
-    RecreateCompute(createInfo);
+    diamond_compute_pipeline pipeline = {};
+    pipeline.pipelineInfo = createInfo;
+    RecreateCompute(pipeline, createInfo);
+    computePipelines.push_back(pipeline);
 }
 
-void diamond::RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination)
+void diamond::RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination)
 {
     void *mapped;
-    vkMapMemory(logicalDevice, computeBuffersMemory[bufferIndex], dataOffset, dataSize, 0, &mapped);
+    vkMapMemory(logicalDevice, computePipelines[pipelineIndex].buffersMemory[bufferIndex], dataOffset, dataSize, 0, &mapped);
     memcpy(destination, mapped, dataSize);
-    vkUnmapMemory(logicalDevice, computeBuffersMemory[bufferIndex]);
+    vkUnmapMemory(logicalDevice, computePipelines[pipelineIndex].buffersMemory[bufferIndex]);
 }
 
-void diamond::MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source)
+void diamond::MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source)
 {
-    MapMemory(source, 1, dataSize, computeBuffersMemory[bufferIndex], dataOffset);
+    MapMemory(source, 1, dataSize, computePipelines[pipelineIndex].buffersMemory[bufferIndex], dataOffset);
 }
 
-void diamond::RunComputeShader(bool dirty, void* pushConsantsData)
+void diamond::RunComputeShader(int pipelineIndex, bool dirty, void* pushConsantsData)
 {
-    if (computePipelineInfo.enabled) // run compute pipeline if enabled
+    const diamond_compute_pipeline& pipeline = computePipelines[pipelineIndex];
+    const diamond_compute_pipeline_create_info& pipelineInfo = pipeline.pipelineInfo;
+    if (pipelineInfo.enabled) // run compute pipeline if enabled
     {
         // Bind compute pipeline
         VkCommandBufferBeginInfo computeBeginInfo{};
         computeBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         VkResult result = vkBeginCommandBuffer(computeBuffer, &computeBeginInfo);
         Assert(result == VK_SUCCESS);
-        MemoryBarrier(computeBuffer, computePipelineInfo.preRunSyncFlags.srcAccessMask, computePipelineInfo.preRunSyncFlags.dstAccessMask, computePipelineInfo.preRunSyncFlags.srcStageMask, computePipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
-        vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
-        vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSets[0], 0, nullptr);
+        MemoryBarrier(computeBuffer, pipelineInfo.preRunSyncFlags.srcAccessMask, pipelineInfo.preRunSyncFlags.dstAccessMask, pipelineInfo.preRunSyncFlags.srcStageMask, pipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
+        vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
+        vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipelineLayout, 0, 1, &pipeline.descriptorSets[0], 0, nullptr);
 
-        if (computePipelineInfo.usePushConstants)
+        if (pipelineInfo.usePushConstants)
         {
-            vkCmdPushConstants(computeBuffer, computePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, computePipelineInfo.pushConstantsDataSize, pushConsantsData);
+            vkCmdPushConstants(computeBuffer, pipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, pipelineInfo.pushConstantsDataSize, pushConsantsData);
         }
 
         if (dirty)
         {
-            for (int i = 0; i < computePipelineInfo.bufferCount; i++)
+            for (int i = 0; i < pipelineInfo.bufferCount; i++)
             {
-                if (computePipelineInfo.bufferInfoList[i].staging)
+                if (pipelineInfo.bufferInfoList[i].staging)
                 {
                     VkBufferCopy copy = {};
-                    copy.size = computePipelineInfo.bufferInfoList[i].size;
+                    copy.size = pipelineInfo.bufferInfoList[i].size;
                     
-                    vkCmdCopyBuffer(computeBuffer, computeBuffers[i], computeDeviceBuffers[i], 1, &copy);
+                    vkCmdCopyBuffer(computeBuffer, pipeline.buffers[i], pipeline.deviceBuffers[i], 1, &copy);
                 }
             }
         }
@@ -465,23 +469,23 @@ void diamond::RunComputeShader(bool dirty, void* pushConsantsData)
         // dispatch compute pipeline
         vkCmdDispatch(
             computeBuffer,
-            std::min(computePipelineInfo.groupCountX, physicalDeviceProperties.limits.maxComputeWorkGroupCount[0]),
-            std::min(computePipelineInfo.groupCountY, physicalDeviceProperties.limits.maxComputeWorkGroupCount[1]),
-            std::min(computePipelineInfo.groupCountZ, physicalDeviceProperties.limits.maxComputeWorkGroupCount[2])
+            std::min(pipelineInfo.groupCountX, physicalDeviceProperties.limits.maxComputeWorkGroupCount[0]),
+            std::min(pipelineInfo.groupCountY, physicalDeviceProperties.limits.maxComputeWorkGroupCount[1]),
+            std::min(pipelineInfo.groupCountZ, physicalDeviceProperties.limits.maxComputeWorkGroupCount[2])
         );
 
-        for (int i = 0; i < computePipelineInfo.bufferCount; i++)
+        for (int i = 0; i < pipelineInfo.bufferCount; i++)
         {
-            if (computePipelineInfo.bufferInfoList[i].staging && computePipelineInfo.bufferInfoList[i].copyBackToCPU)
+            if (pipelineInfo.bufferInfoList[i].staging && pipelineInfo.bufferInfoList[i].copyBackToCPU)
             {
                 VkBufferCopy copy = {};
-                copy.size = computePipelineInfo.bufferInfoList[i].size;
+                copy.size = pipelineInfo.bufferInfoList[i].size;
                 
-                vkCmdCopyBuffer(computeBuffer, computeDeviceBuffers[i], computeBuffers[i], 1, &copy);
+                vkCmdCopyBuffer(computeBuffer, pipeline.deviceBuffers[i], pipeline.buffers[i], 1, &copy);
             }
         }
 
-        MemoryBarrier(computeBuffer, computePipelineInfo.postRunSyncFlags.srcAccessMask, computePipelineInfo.postRunSyncFlags.dstAccessMask, computePipelineInfo.postRunSyncFlags.srcStageMask, computePipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
+        MemoryBarrier(computeBuffer, pipelineInfo.postRunSyncFlags.srcAccessMask, pipelineInfo.postRunSyncFlags.dstAccessMask, pipelineInfo.postRunSyncFlags.srcStageMask, pipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
         result = vkEndCommandBuffer(computeBuffer);
 
         // submit to queue
@@ -493,7 +497,7 @@ void diamond::RunComputeShader(bool dirty, void* pushConsantsData)
         submitInfo.pCommandBuffers = &computeBuffer;
         submitInfo.pWaitDstStageMask = &waitFlags;
         vkQueueSubmit(computeQueue, 1, &submitInfo, computeFence);
-        if (computePipelineInfo.shouldBlockCPU)
+        if (pipelineInfo.shouldBlockCPU)
             vkWaitForFences(logicalDevice, 1, &computeFence, true, UINT64_MAX); // optionally wait for queue fence
     }
 }
@@ -945,7 +949,7 @@ void diamond::CreateDescriptorPool()
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateComputeDescriptorPool(int bufferCount, int imageCount)
+void diamond::CreateComputeDescriptorPool(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount)
 {
     VkDescriptorPoolSize bufferPoolSize = {};
     bufferPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -968,7 +972,7 @@ void diamond::CreateComputeDescriptorPool(int bufferCount, int imageCount)
     poolInfo.maxSets = 1;
     poolInfo.flags = 0;
 
-    VkResult result = vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &computeDescriptorPool);
+    VkResult result = vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &pipeline.descriptorPool);
     Assert(result == VK_SUCCESS);
 }
 
@@ -1024,16 +1028,16 @@ void diamond::CreateDescriptorSets()
     }
 }
 
-void diamond::CreateComputeDescriptorSets(int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo)
+void diamond::CreateComputeDescriptorSets(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo)
 {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = computeDescriptorPool;
+    allocInfo.descriptorPool = pipeline.descriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &computeDescriptorSetLayout;
+    allocInfo.pSetLayouts = &pipeline.descriptorSetLayout;
 
-    computeDescriptorSets.resize(1);
-    VkResult result = vkAllocateDescriptorSets(logicalDevice, &allocInfo, computeDescriptorSets.data());
+    pipeline.descriptorSets.resize(1);
+    VkResult result = vkAllocateDescriptorSets(logicalDevice, &allocInfo, pipeline.descriptorSets.data());
     Assert(result == VK_SUCCESS);
 
     std::vector<VkDescriptorBufferInfo> bufferDescriptorList(bufferCount);
@@ -1042,14 +1046,14 @@ void diamond::CreateComputeDescriptorSets(int bufferCount, int imageCount, diamo
     for (int i = 0; i < bufferCount; i++)
     {
         if (bufferInfo[i].staging)
-            bufferDescriptorList[i].buffer = computeDeviceBuffers[i];
+            bufferDescriptorList[i].buffer = pipeline.deviceBuffers[i];
         else
-            bufferDescriptorList[i].buffer = computeBuffers[i];
+            bufferDescriptorList[i].buffer = pipeline.buffers[i];
         bufferDescriptorList[i].offset = 0;  
         bufferDescriptorList[i].range = bufferInfo[i].size;
 
         descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[i].dstSet = computeDescriptorSets[0];
+        descriptorWrites[i].dstSet = pipeline.descriptorSets[0];
         descriptorWrites[i].dstBinding = i;
         descriptorWrites[i].dstArrayElement = 0;
         descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1058,11 +1062,11 @@ void diamond::CreateComputeDescriptorSets(int bufferCount, int imageCount, diamo
     }
     for (int i = bufferCount; i < imageCount + bufferCount; i++)
     {
-        imageDescriptorList[i - bufferCount].imageView = textureArray[computeTextureIndexes[i - bufferCount]].imageView;
+        imageDescriptorList[i - bufferCount].imageView = textureArray[pipeline.textureIndexes[i - bufferCount]].imageView;
         imageDescriptorList[i - bufferCount].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[i].dstSet = computeDescriptorSets[0];
+        descriptorWrites[i].dstSet = pipeline.descriptorSets[0];
         descriptorWrites[i].dstBinding = i;
         descriptorWrites[i].dstArrayElement = 0;
         descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1137,24 +1141,24 @@ void diamond::RecreateSwapChain()
     CreateCommandBuffers();
 }
 
-void diamond::CleanupCompute()
+void diamond::CleanupCompute(diamond_compute_pipeline& pipeline)
 {
-    vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
-    vkDestroyDescriptorPool(logicalDevice, computeDescriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(logicalDevice, computeDescriptorSetLayout, nullptr);
+    vkDestroyPipeline(logicalDevice, pipeline.pipeline, nullptr);
+    vkDestroyPipelineLayout(logicalDevice, pipeline.pipelineLayout, nullptr);
+    vkDestroyDescriptorPool(logicalDevice, pipeline.descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(logicalDevice, pipeline.descriptorSetLayout, nullptr);
     
-    for (int i = 0; i < computeBuffers.size(); i++)
+    for (int i = 0; i < pipeline.buffers.size(); i++)
     {
-        vkDestroyBuffer(logicalDevice, computeBuffers[i], nullptr);
-        vkFreeMemory(logicalDevice, computeBuffersMemory[i], nullptr);
-        vkDestroyBuffer(logicalDevice, computeDeviceBuffers[i], nullptr);
-        vkFreeMemory(logicalDevice, computeDeviceBuffersMemory[i], nullptr);
+        vkDestroyBuffer(logicalDevice, pipeline.buffers[i], nullptr);
+        vkFreeMemory(logicalDevice, pipeline.buffersMemory[i], nullptr);
+        vkDestroyBuffer(logicalDevice, pipeline.deviceBuffers[i], nullptr);
+        vkFreeMemory(logicalDevice, pipeline.deviceBuffersMemory[i], nullptr);
     }
 
-    for (int i = 0; i < computeTextureIndexes.size(); i++)
+    for (int i = 0; i < pipeline.textureIndexes.size(); i++)
     {
-        diamond_texture& entry = textureArray[computeTextureIndexes[i]];
+        diamond_texture& entry = textureArray[pipeline.textureIndexes[i]];
         if (entry.id != -1)
         {
             vkDestroyImageView(logicalDevice, entry.imageView, nullptr);
@@ -1165,62 +1169,123 @@ void diamond::CleanupCompute()
     }
 }
 
-void diamond::RecreateCompute(diamond_compute_pipeline_create_info createInfo)
+void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_compute_pipeline_create_info createInfo)
 {
-    CleanupCompute();
-
-    vkDeviceWaitIdle(logicalDevice);
-
-    computeBuffers.resize(createInfo.bufferCount);
-    computeBuffersMemory.resize(createInfo.bufferCount);
-    computeDeviceBuffers.resize(createInfo.bufferCount);
-    computeDeviceBuffersMemory.resize(createInfo.bufferCount);
+    pipeline.buffers.resize(createInfo.bufferCount);
+    pipeline.buffersMemory.resize(createInfo.bufferCount);
+    pipeline.deviceBuffers.resize(createInfo.bufferCount);
+    pipeline.deviceBuffersMemory.resize(createInfo.bufferCount);
 
     for (int i = 0; i < createInfo.bufferCount; i++)
     {
-        VkBufferUsageFlags baseFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        if (createInfo.bufferInfoList[i].bindVertexBuffer)
-            baseFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-        VkBufferUsageFlags hostFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
-        CreateBuffer(createInfo.bufferInfoList[i].size, hostFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, computeBuffers[i], computeBuffersMemory[i]);
-
-        if (createInfo.bufferInfoList[i].staging)
+        std::string identifier = createInfo.bufferInfoList[i].identifier;
+        bool found = false;
+        if (identifier != "") // compare to other pipelines and copy data
         {
-            VkBufferUsageFlags deviceFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0);
-            CreateBuffer(createInfo.bufferInfoList[i].size, deviceFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, computeDeviceBuffers[i], computeDeviceBuffersMemory[i]);
+            for (int j = 0; j < computePipelines.size(); j++)
+            {
+                for (int k = 0; k < computePipelines[j].pipelineInfo.bufferCount; k++)
+                {
+                    if (std::string(computePipelines[j].pipelineInfo.bufferInfoList[k].identifier) == identifier) // match found
+                    {
+                        pipeline.pipelineInfo.bufferInfoList[i] = computePipelines[j].pipelineInfo.bufferInfoList[k];
+                        pipeline.buffers[i] = computePipelines[j].buffers[k];
+                        pipeline.buffersMemory[i] = computePipelines[j].buffersMemory[k];
+                        pipeline.deviceBuffers[i] = computePipelines[j].deviceBuffers[k];
+                        pipeline.deviceBuffersMemory[i] = computePipelines[j].deviceBuffersMemory[k];
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
+                    break;
+            }
+        }
+        
+        if (!found)
+        {
+            VkBufferUsageFlags baseFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+            if (createInfo.bufferInfoList[i].bindVertexBuffer)
+                baseFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+            VkBufferUsageFlags hostFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+            CreateBuffer(createInfo.bufferInfoList[i].size, hostFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, pipeline.buffers[i], pipeline.buffersMemory[i]);
+
+            if (createInfo.bufferInfoList[i].staging)
+            {
+                VkBufferUsageFlags deviceFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0);
+                CreateBuffer(createInfo.bufferInfoList[i].size, deviceFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, pipeline.deviceBuffers[i], pipeline.deviceBuffersMemory[i]);
+            }
         }
     }
 
     for (int i = 0; i < createInfo.imageCount; i++)
     {
-        diamond_texture newTex{};
-
-        CreateImage(createInfo.imageInfoList[i].width, createInfo.imageInfoList[i].height, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, newTex.image, newTex.memory);
-        TransitionImageLayout(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        TransitionImageLayout(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
-        newTex.imageView = CreateImageView(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, 1);
-        newTex.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-        if (i < computeTextureIndexes.size())
+        std::string identifier = createInfo.imageInfoList[i].identifier;
+        bool found = false;
+        if (identifier != "") // compare to other pipelines and copy data
         {
-            newTex.id = computeTextureIndexes[i];
-            textureArray[computeTextureIndexes[i]] = newTex;
+            for (int j = 0; j < computePipelines.size(); j++)
+            {
+                for (int k = 0; k < computePipelines[j].pipelineInfo.imageCount; k++)
+                {
+                    if (std::string(computePipelines[j].pipelineInfo.imageInfoList[k].identifier) == identifier) // match found
+                    {
+                        pipeline.pipelineInfo.imageInfoList[i] = computePipelines[j].pipelineInfo.imageInfoList[k];
+                        pipeline.textureIndexes.push_back(computePipelines[j].textureIndexes[k]);
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
+                    break;
+            }
         }
-        else
+        
+        if (!found)
         {
+            diamond_texture newTex{};
+
+            VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+            switch (createInfo.imageInfoList[i].precision)
+            {
+                case 8:
+                {} break;
+                case 16:
+                {
+                    format = VK_FORMAT_R16G16B16A16_UNORM;
+                } break;
+                case 32:
+                {
+                    format = VK_FORMAT_R32G32B32A32_SFLOAT;
+                } break;
+                case 64:
+                {
+                    format = VK_FORMAT_R64G64B64A64_SFLOAT;
+                } break;
+                default:
+                {
+                    throw std::invalid_argument("Invalid precision");
+                }
+            }
+
+            CreateImage(createInfo.imageInfoList[i].width, createInfo.imageInfoList[i].height, format, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, newTex.image, newTex.memory);
+            TransitionImageLayout(newTex.image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            TransitionImageLayout(newTex.image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+            newTex.imageView = CreateImageView(newTex.image, format, 1);
+            newTex.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
             newTex.id = static_cast<u32>(textureArray.size());
-            computeTextureIndexes.push_back(textureArray.size());
+            pipeline.textureIndexes.push_back(textureArray.size());
             textureArray.push_back(newTex);
         }
     }
     SyncTextureUpdates();
 
-    CreateComputeDescriptorSetLayout(createInfo.bufferCount, createInfo.imageCount);
-    CreateComputePipeline(createInfo.computeShaderPath, createInfo.entryFunctionName);
-    CreateComputeDescriptorPool(createInfo.bufferCount, createInfo.imageCount);
-    CreateComputeDescriptorSets(createInfo.bufferCount, createInfo.imageCount, createInfo.bufferInfoList);
+    CreateComputeDescriptorSetLayout(pipeline, createInfo.bufferCount, createInfo.imageCount);
+    CreateComputePipeline(pipeline, createInfo.computeShaderPath, createInfo.entryFunctionName);
+    CreateComputeDescriptorPool(pipeline, createInfo.bufferCount, createInfo.imageCount);
+    CreateComputeDescriptorSets(pipeline, createInfo.bufferCount, createInfo.imageCount, createInfo.bufferInfoList);
 }
 
 diamond_swap_chain_support_details diamond::GetSwapChainSupport(VkPhysicalDevice device)
@@ -1517,22 +1582,22 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
     vkDestroyShaderModule(logicalDevice, fragShader, nullptr);
 }
 
-void diamond::CreateComputePipeline(const char* compShaderPath, const char* entryFunctionName)
+void diamond::CreateComputePipeline(diamond_compute_pipeline& pipeline, const char* compShaderPath, const char* entryFunctionName)
 {
     VkShaderModule module = CreateShaderModule(compShaderPath);
 
     VkPushConstantRange pushConstants{};
     pushConstants.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     pushConstants.offset = 0;
-    pushConstants.size = computePipelineInfo.pushConstantsDataSize;
+    pushConstants.size = pipeline.pipelineInfo.pushConstantsDataSize;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = computePipelineInfo.usePushConstants;
+    pipelineLayoutInfo.pSetLayouts = &pipeline.descriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = pipeline.pipelineInfo.usePushConstants;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstants;
-    VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &computePipelineLayout);
+    VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipeline.pipelineLayout);
     Assert(result == VK_SUCCESS);
 
     VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
@@ -1540,8 +1605,8 @@ void diamond::CreateComputePipeline(const char* compShaderPath, const char* entr
     info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     info.stage.module = module;
     info.stage.pName = entryFunctionName;
-    info.layout = computePipelineLayout;
-    result = vkCreateComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &info, nullptr, &computePipeline);
+    info.layout = pipeline.pipelineLayout;
+    result = vkCreateComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline.pipeline);
     Assert(result == VK_SUCCESS);
 
     vkDestroyShaderModule(logicalDevice, module, nullptr);
@@ -1573,7 +1638,7 @@ void diamond::CreateDescriptorSetLayout()
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateComputeDescriptorSetLayout(int bufferCount, int imageCount)
+void diamond::CreateComputeDescriptorSetLayout(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount)
 {
     std::vector<VkDescriptorSetLayoutBinding> bindings(bufferCount + imageCount);
     for (int i = 0; i < bufferCount; i++)
@@ -1598,7 +1663,7 @@ void diamond::CreateComputeDescriptorSetLayout(int bufferCount, int imageCount)
     layoutInfo.bindingCount = bindings.size();
     layoutInfo.pBindings = bindings.data();
 
-    VkResult result = vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &computeDescriptorSetLayout);
+    VkResult result = vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &pipeline.descriptorSetLayout);
     Assert(result == VK_SUCCESS);
 }
 
@@ -1829,7 +1894,7 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix, int computeVertexBufferIndex)
+void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix, int computePipelineIndex, int computeVertexBufferIndex)
 {
     frameStartTime = std::chrono::high_resolution_clock::now();
 
@@ -1865,12 +1930,12 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
     Assert(result == VK_SUCCESS);
 
     VkDeviceSize offsets[] = { 0 };
-    if (computeVertexBufferIndex == -1)
+    if (computeVertexBufferIndex == -1 || computePipelineIndex == -1)
         vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &vertexBuffer, offsets);
-    else if (computePipelineInfo.bufferInfoList[computeVertexBufferIndex].staging)
-        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computeDeviceBuffers[computeVertexBufferIndex], offsets);
+    else if (computePipelines[computePipelineIndex].pipelineInfo.bufferInfoList[computeVertexBufferIndex].staging)
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[computePipelineIndex].deviceBuffers[computeVertexBufferIndex], offsets);
     else
-        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computeBuffers[computeVertexBufferIndex], offsets);
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[computePipelineIndex].buffers[computeVertexBufferIndex], offsets);
     vkCmdBindIndexBuffer(renderPassBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
     vkCmdBindDescriptorSets(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[nextImageIndex], 0, nullptr);
     vkCmdBindPipeline(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -2017,7 +2082,10 @@ void diamond::Cleanup()
         vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
     }
 
-    CleanupCompute();
+    for (int i = 0; i < computePipelines.size(); i++)
+    {
+        CleanupCompute(computePipelines[i]);
+    }
     vkDestroyFence(logicalDevice, computeFence, nullptr);
 
     vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
