@@ -96,7 +96,7 @@ public:
     void RetrieveComputeData(int bufferIndex, int dataOffset, int dataSize, void* destination);
     void MapComputeData(int bufferIndex, int dataOffset, int dataSize, void* source);
     void UpdateComputePipeline(diamond_compute_pipeline_create_info createInfo);
-    void RunComputeShader(bool dirty);
+    void RunComputeShader(bool dirty, void* pushConsantsData = nullptr);
     glm::vec3 GetDeviceMaxWorkgroupCount();
 
     /*
@@ -255,6 +255,10 @@ public:
     */
     void SetFullscreen(bool fullscreen);
 
+    inline double FrameDelta() { return frameDelta; };
+
+    inline double FPS() { return fps; };
+
     /*
     * Get the glfw window handle
     * 
@@ -305,13 +309,13 @@ private:
     void CreateVertexBuffer(int maxVertexCount);
     void CreateIndexBuffer(int maxIndexCount);
     void CreateDescriptorSetLayout();
-    void CreateComputeDescriptorSetLayout(int bufferCount);
+    void CreateComputeDescriptorSetLayout(int bufferCount, int imageCount);
     void CreateUniformBuffers();
     void UpdatePerFrameBuffer(uint32_t imageIndex);
     void CreateDescriptorPool();
-    void CreateComputeDescriptorPool(int bufferCount);
+    void CreateComputeDescriptorPool(int bufferCount, int imageCount);
     void CreateDescriptorSets();
-    void CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffer_info* bufferInfo);
+    void CreateComputeDescriptorSets(int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo);
     void CreateTextureSampler();
     void CreateColorResources();
     void Present();
@@ -331,7 +335,7 @@ private:
     void CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height);
     VkImageView CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory);
     VkImageView CreateTextureImage(void* data, VkImage& image, VkDeviceMemory& imageMemory, int width, int height);
-    void CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+    void CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
     VkCommandBuffer BeginSingleTimeCommands();
     void EndSingleTimeCommands(VkCommandBuffer commandBuffer);
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
@@ -340,6 +344,10 @@ private:
     VkSampleCountFlagBits GetMaxSampleCount();
 
     GLFWwindow* window;
+
+    double frameDelta = 0.0;
+    double fps = 0.0;
+    std::chrono::steady_clock::time_point frameStartTime;
 
     std::vector<const char*> validationLayers = {};
     std::vector<const char*> deviceExtensions = {};
@@ -406,6 +414,7 @@ private:
     std::vector<VkBuffer> computeDeviceBuffers;
     std::vector<VkDeviceMemory> computeDeviceBuffersMemory;
     std::vector<VkDescriptorSet> computeDescriptorSets;
+    std::vector<int> computeTextureIndexes;
     VkFence computeFence = VK_NULL_HANDLE;
     VkDescriptorPool computeDescriptorPool = VK_NULL_HANDLE;
     VkPipeline computePipeline = VK_NULL_HANDLE;

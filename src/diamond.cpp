@@ -3,7 +3,6 @@
 #include <iostream>
 #include <fstream>
 #include <set>
-#include <chrono>
 #include <gtc/matrix_transform.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -177,6 +176,7 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
         VkPhysicalDeviceFeatures deviceFeatures{};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+        deviceFeatures.shaderFloat64 = VK_TRUE;
         
         VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
         indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
@@ -357,6 +357,7 @@ u32 diamond::RegisterTexture(const char* filePath)
     diamond_texture newTex{};
     newTex.imageView = CreateTextureImage(filePath, newTex.image, newTex.memory);
     newTex.id = static_cast<u32>(textureArray.size());
+    newTex.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     textureArray.push_back(newTex);
     return newTex.id;
 }
@@ -366,6 +367,7 @@ u32 diamond::RegisterTexture(void* data, int width, int height)
     diamond_texture newTex{};
     newTex.imageView = CreateTextureImage(data, newTex.image, newTex.memory, width, height);
     newTex.id = static_cast<u32>(textureArray.size());
+    newTex.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     textureArray.push_back(newTex);
     return newTex.id;
 }
@@ -428,7 +430,7 @@ void diamond::MapComputeData(int bufferIndex, int dataOffset, int dataSize, void
     MapMemory(source, 1, dataSize, computeBuffersMemory[bufferIndex], dataOffset);
 }
 
-void diamond::RunComputeShader(bool dirty)
+void diamond::RunComputeShader(bool dirty, void* pushConsantsData)
 {
     if (computePipelineInfo.enabled) // run compute pipeline if enabled
     {
@@ -440,6 +442,11 @@ void diamond::RunComputeShader(bool dirty)
         MemoryBarrier(computeBuffer, computePipelineInfo.preRunSyncFlags.srcAccessMask, computePipelineInfo.preRunSyncFlags.dstAccessMask, computePipelineInfo.preRunSyncFlags.srcStageMask, computePipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
         vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
         vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSets[0], 0, nullptr);
+
+        if (computePipelineInfo.usePushConstants)
+        {
+            vkCmdPushConstants(computeBuffer, computePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, computePipelineInfo.pushConstantsDataSize, pushConsantsData);
+        }
 
         if (dirty)
         {
@@ -739,6 +746,14 @@ void diamond::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayou
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     }
+    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_GENERAL)
+    {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
     else
         throw std::invalid_argument("Unsupported layout transition");
 
@@ -754,7 +769,7 @@ void diamond::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayou
     EndSingleTimeCommands(commandBuffer);
 }
 
-void diamond::CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
+void diamond::CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkImageLayout initialLayout)
 {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -766,7 +781,7 @@ void diamond::CreateImage(uint32_t width, uint32_t height, VkFormat format, uint
     imageInfo.arrayLayers = 1;
     imageInfo.format = format;
     imageInfo.tiling = tiling;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.initialLayout = initialLayout;
     imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = numSamples;
@@ -930,16 +945,26 @@ void diamond::CreateDescriptorPool()
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateComputeDescriptorPool(int bufferCount)
+void diamond::CreateComputeDescriptorPool(int bufferCount, int imageCount)
 {
-    VkDescriptorPoolSize poolSize = {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = bufferCount;
+    VkDescriptorPoolSize bufferPoolSize = {};
+    bufferPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bufferPoolSize.descriptorCount = bufferCount;
+
+    VkDescriptorPoolSize imagePoolSize = {};
+    imagePoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    imagePoolSize.descriptorCount = imageCount;
+
+    std::vector<VkDescriptorPoolSize> poolSizes;
+    if (bufferCount > 0)
+        poolSizes.push_back(bufferPoolSize);
+    if (imageCount > 0)
+        poolSizes.push_back(imagePoolSize);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = poolSizes.size();
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 1;
     poolInfo.flags = 0;
 
@@ -980,7 +1005,7 @@ void diamond::CreateDescriptorSets()
         for (int i = 0; i < textureArray.size(); i++)
         {
             VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageLayout = textureArray[i].imageLayout;
             imageInfo.imageView = textureArray[i].imageView;
             imageInfo.sampler = textureSampler;
 
@@ -999,7 +1024,7 @@ void diamond::CreateDescriptorSets()
     }
 }
 
-void diamond::CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffer_info* bufferInfo)
+void diamond::CreateComputeDescriptorSets(int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo)
 {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1011,16 +1036,17 @@ void diamond::CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffe
     VkResult result = vkAllocateDescriptorSets(logicalDevice, &allocInfo, computeDescriptorSets.data());
     Assert(result == VK_SUCCESS);
 
-    std::vector<VkDescriptorBufferInfo> descriptorList(bufferCount);
-    std::vector<VkWriteDescriptorSet> descriptorWrites(bufferCount);
+    std::vector<VkDescriptorBufferInfo> bufferDescriptorList(bufferCount);
+    std::vector<VkDescriptorImageInfo> imageDescriptorList(imageCount);
+    std::vector<VkWriteDescriptorSet> descriptorWrites(bufferCount + imageCount);
     for (int i = 0; i < bufferCount; i++)
     {
         if (bufferInfo[i].staging)
-            descriptorList[i].buffer = computeDeviceBuffers[i];
+            bufferDescriptorList[i].buffer = computeDeviceBuffers[i];
         else
-            descriptorList[i].buffer = computeBuffers[i];
-        descriptorList[i].offset = 0;  
-        descriptorList[i].range = bufferInfo[i].size;
+            bufferDescriptorList[i].buffer = computeBuffers[i];
+        bufferDescriptorList[i].offset = 0;  
+        bufferDescriptorList[i].range = bufferInfo[i].size;
 
         descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[i].dstSet = computeDescriptorSets[0];
@@ -1028,10 +1054,23 @@ void diamond::CreateComputeDescriptorSets(int bufferCount, diamond_compute_buffe
         descriptorWrites[i].dstArrayElement = 0;
         descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[i].descriptorCount = 1;
-        descriptorWrites[i].pBufferInfo = &descriptorList[i];
+        descriptorWrites[i].pBufferInfo = &bufferDescriptorList[i];
+    }
+    for (int i = bufferCount; i < imageCount + bufferCount; i++)
+    {
+        imageDescriptorList[i - bufferCount].imageView = textureArray[computeTextureIndexes[i - bufferCount]].imageView;
+        imageDescriptorList[i - bufferCount].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[i].dstSet = computeDescriptorSets[0];
+        descriptorWrites[i].dstBinding = i;
+        descriptorWrites[i].dstArrayElement = 0;
+        descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        descriptorWrites[i].descriptorCount = 1;
+        descriptorWrites[i].pImageInfo = &imageDescriptorList[i - bufferCount];
     }
 
-    vkUpdateDescriptorSets(logicalDevice, bufferCount, descriptorWrites.data(), 0, nullptr);
+    vkUpdateDescriptorSets(logicalDevice, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
 void diamond::CleanupSwapChain()
@@ -1112,6 +1151,18 @@ void diamond::CleanupCompute()
         vkDestroyBuffer(logicalDevice, computeDeviceBuffers[i], nullptr);
         vkFreeMemory(logicalDevice, computeDeviceBuffersMemory[i], nullptr);
     }
+
+    for (int i = 0; i < computeTextureIndexes.size(); i++)
+    {
+        diamond_texture& entry = textureArray[computeTextureIndexes[i]];
+        if (entry.id != -1)
+        {
+            vkDestroyImageView(logicalDevice, entry.imageView, nullptr);
+            vkDestroyImage(logicalDevice, entry.image, nullptr);
+            vkFreeMemory(logicalDevice, entry.memory, nullptr);
+            entry.id = -1;
+        }
+    }
 }
 
 void diamond::RecreateCompute(diamond_compute_pipeline_create_info createInfo)
@@ -1141,10 +1192,35 @@ void diamond::RecreateCompute(diamond_compute_pipeline_create_info createInfo)
         }
     }
 
-    CreateComputeDescriptorSetLayout(createInfo.bufferCount);
+    for (int i = 0; i < createInfo.imageCount; i++)
+    {
+        diamond_texture newTex{};
+
+        CreateImage(createInfo.imageInfoList[i].width, createInfo.imageInfoList[i].height, VK_FORMAT_R8G8B8A8_UNORM, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, newTex.image, newTex.memory);
+        TransitionImageLayout(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        TransitionImageLayout(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+        newTex.imageView = CreateImageView(newTex.image, VK_FORMAT_R8G8B8A8_UNORM, 1);
+        newTex.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        if (i < computeTextureIndexes.size())
+        {
+            newTex.id = computeTextureIndexes[i];
+            textureArray[computeTextureIndexes[i]] = newTex;
+        }
+        else
+        {
+            newTex.id = static_cast<u32>(textureArray.size());
+            computeTextureIndexes.push_back(textureArray.size());
+            textureArray.push_back(newTex);
+        }
+    }
+    SyncTextureUpdates();
+
+    CreateComputeDescriptorSetLayout(createInfo.bufferCount, createInfo.imageCount);
     CreateComputePipeline(createInfo.computeShaderPath, createInfo.entryFunctionName);
-    CreateComputeDescriptorPool(createInfo.bufferCount);
-    CreateComputeDescriptorSets(createInfo.bufferCount, createInfo.bufferInfoList);
+    CreateComputeDescriptorPool(createInfo.bufferCount, createInfo.imageCount);
+    CreateComputeDescriptorSets(createInfo.bufferCount, createInfo.imageCount, createInfo.bufferInfoList);
 }
 
 diamond_swap_chain_support_details diamond::GetSwapChainSupport(VkPhysicalDevice device)
@@ -1445,10 +1521,17 @@ void diamond::CreateComputePipeline(const char* compShaderPath, const char* entr
 {
     VkShaderModule module = CreateShaderModule(compShaderPath);
 
+    VkPushConstantRange pushConstants{};
+    pushConstants.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pushConstants.offset = 0;
+    pushConstants.size = computePipelineInfo.pushConstantsDataSize;
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = computePipelineInfo.usePushConstants;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstants;
     VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &computePipelineLayout);
     Assert(result == VK_SUCCESS);
 
@@ -1490,9 +1573,9 @@ void diamond::CreateDescriptorSetLayout()
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateComputeDescriptorSetLayout(int bufferCount)
+void diamond::CreateComputeDescriptorSetLayout(int bufferCount, int imageCount)
 {
-    std::vector<VkDescriptorSetLayoutBinding> bindings(bufferCount);
+    std::vector<VkDescriptorSetLayoutBinding> bindings(bufferCount + imageCount);
     for (int i = 0; i < bufferCount; i++)
     {
         bindings[i].binding = i;
@@ -1501,10 +1584,18 @@ void diamond::CreateComputeDescriptorSetLayout(int bufferCount)
         bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
         bindings[i].pImmutableSamplers = nullptr;
     }
+    for (int i = bufferCount; i < bufferCount + imageCount; i++)
+    {
+        bindings[i].binding = i;
+        bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        bindings[i].descriptorCount = 1;
+        bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[i].pImmutableSamplers = nullptr;
+    }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = bufferCount;
+    layoutInfo.bindingCount = bindings.size();
     layoutInfo.pBindings = bindings.data();
 
     VkResult result = vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &computeDescriptorSetLayout);
@@ -1740,6 +1831,8 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
 
 void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix, int computeVertexBufferIndex)
 {
+    frameStartTime = std::chrono::high_resolution_clock::now();
+
     cameraMode = camMode;
     cameraDimensions = camDimensions;
     cameraViewMatrix = camViewMatrix;
@@ -1830,6 +1923,10 @@ void diamond::EndFrame(glm::vec4 clearColor)
     else
         RecreateSwapChain();
     currentFrameIndex = (currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    frameDelta = std::max((f32)(std::chrono::duration_cast<std::chrono::milliseconds>(stop - frameStartTime)).count(), 0.5f);
+    fps = 1.f / (frameDelta / 1000.f);
 }
 
 void diamond::MemoryBarrier(VkCommandBuffer cmd, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
@@ -1903,6 +2000,7 @@ void diamond::Cleanup()
         vkDestroyImageView(logicalDevice, textureArray[i].imageView, nullptr);
         vkDestroyImage(logicalDevice, textureArray[i].image, nullptr);
         vkFreeMemory(logicalDevice, textureArray[i].memory, nullptr);
+        textureArray[i].id = -1;
     }
 
     vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);

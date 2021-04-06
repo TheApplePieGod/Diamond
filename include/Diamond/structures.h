@@ -9,6 +9,7 @@
 #include <vec2.hpp>
 #include <vec3.hpp>
 #include <mat4x4.hpp>
+#include <chrono>
 
 enum diamond_camera_mode: uint16_t
 {
@@ -39,6 +40,7 @@ struct diamond_texture
     VkImage image;
     VkDeviceMemory memory;
     VkImageView imageView;
+    VkImageLayout imageLayout;
     uint32_t id;
 };
 
@@ -111,6 +113,18 @@ struct diamond_compute_buffer_info
     bool copyBackToCPU = false; // if staging is enabled, enabling this will copy the device buffer back to local every frame for retrieval
 };
 
+struct diamond_compute_image_info
+{
+    diamond_compute_image_info(int _width, int _height)
+    {
+        width = _width;
+        height = _height;
+    }
+
+    int width = 0;
+    int height = 0;
+};
+
 // References
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkAccessFlagBits.html
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPipelineStageFlagBits.html
@@ -129,12 +143,16 @@ struct diamond_compute_pipeline_create_info
     bool enabled = false;
     diamond_compute_buffer_info* bufferInfoList = nullptr;
     int bufferCount = 0;
+    diamond_compute_image_info* imageInfoList = nullptr;
+    int imageCount = 0;
     const char* computeShaderPath = "";
     const char* entryFunctionName = "main";
     uint32_t groupCountX = 1;
     uint32_t groupCountY = 1;
     uint32_t groupCountZ = 1;
     bool shouldBlockCPU = true;
+    bool usePushConstants = false;
+    int pushConstantsDataSize = 0;
 
     // for advanced use with integrating with different stages in the graphics pipeline
     diamond_compute_memory_synchronization preRunSyncFlags = {
@@ -201,6 +219,13 @@ struct diamond_test_compute_buffer
 struct diamond_test_compute_buffer2
 {
     diamond_particle_vertex vertices[100000];
+};
+
+struct diamond_test_compute_constants
+{
+    double zoom = 2.0;
+    double offsetX = 1.0;
+    double offsetY = 0.0;
 };
 // ----------------------
 
