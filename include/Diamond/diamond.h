@@ -434,6 +434,7 @@ private:
     std::vector<diamond_compute_pipeline> computePipelines;
     VkFence computeFence = VK_NULL_HANDLE;
     VkCommandBuffer computeBuffer = {};
+    std::vector<const char*> freedBuffers; 
 
     diamond_swap_chain_info swapChain;
 };

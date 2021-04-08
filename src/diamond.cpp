@@ -1217,12 +1217,27 @@ void diamond::CleanupCompute(diamond_compute_pipeline& pipeline)
     vkDestroyDescriptorPool(logicalDevice, pipeline.descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(logicalDevice, pipeline.descriptorSetLayout, nullptr);
     
+    pipeline.pipeline = VK_NULL_HANDLE;
+    pipeline.pipelineLayout = VK_NULL_HANDLE;
+    pipeline.descriptorPool = VK_NULL_HANDLE;
+    pipeline.descriptorSetLayout = VK_NULL_HANDLE;
+
     for (int i = 0; i < pipeline.buffers.size(); i++)
     {
-        vkDestroyBuffer(logicalDevice, pipeline.buffers[i], nullptr);
-        vkFreeMemory(logicalDevice, pipeline.buffersMemory[i], nullptr);
-        vkDestroyBuffer(logicalDevice, pipeline.deviceBuffers[i], nullptr);
-        vkFreeMemory(logicalDevice, pipeline.deviceBuffersMemory[i], nullptr);
+        if (std::find(freedBuffers.begin(), freedBuffers.end(), pipeline.pipelineInfo.bufferInfoList[i].identifier) == freedBuffers.end())
+        {
+            vkDestroyBuffer(logicalDevice, pipeline.buffers[i], nullptr);
+            vkFreeMemory(logicalDevice, pipeline.buffersMemory[i], nullptr);
+            vkDestroyBuffer(logicalDevice, pipeline.deviceBuffers[i], nullptr);
+            vkFreeMemory(logicalDevice, pipeline.deviceBuffersMemory[i], nullptr);
+
+            pipeline.buffers[i] = VK_NULL_HANDLE;
+            pipeline.buffersMemory[i] = VK_NULL_HANDLE;
+            pipeline.deviceBuffers[i] = VK_NULL_HANDLE;
+            pipeline.deviceBuffersMemory[i] = VK_NULL_HANDLE;
+
+            freedBuffers.push_back(pipeline.pipelineInfo.bufferInfoList[i].identifier);
+        }
     }
 
     for (int i = 0; i < pipeline.textureIndexes.size(); i++)
@@ -1236,6 +1251,9 @@ void diamond::CleanupCompute(diamond_compute_pipeline& pipeline)
             entry.id = -1;
         }
     }
+
+    delete[] pipeline.pipelineInfo.bufferInfoList;
+    delete[] pipeline.pipelineInfo.imageInfoList;
 }
 
 void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_compute_pipeline_create_info createInfo)
