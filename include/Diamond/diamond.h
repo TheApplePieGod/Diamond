@@ -101,9 +101,14 @@ public:
     void UpdateVertexStructInfo(int vertexSize, VkPrimitiveTopology vertexTopology, std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*getVertexBindingDescription)());
     void RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination);
     void MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source);
+
+    // used to sync with device memory
+    void UploadComputeData(int pipelineIndex, int bufferIndex); // must be called in between begin and end frame
+    void DownloadComputeData(int pipelineIndex, int bufferIndex); // must be called in between begin and end frame
+
     int CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
     int ComputePipelineFirstTextureIndex(int pipelineIndex);
-    void RunComputeShader(int pipelineIndex, bool dirty, void* pushConsantsData = nullptr);
+    void RunComputeShader(int pipelineIndex, void* pushConsantsData = nullptr); // must be called in between begin and end frame
     glm::vec3 GetDeviceMaxWorkgroupCount();
 
     /*

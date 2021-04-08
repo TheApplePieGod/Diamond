@@ -12,7 +12,7 @@ int main2(int argc, char** argv)
     Engine->Initialize(800, 600, 100000, 100000, "Diamond Basic Example", "../shaders/basic.vert.spv", "../shaders/basic.frag.spv");
 
     int particleCount = 100000;
-    std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true, true) };
+    std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true) };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
     std::vector<glm::vec2> computeData(particleCount);
     cpCreateInfo.enabled = true;
@@ -47,7 +47,8 @@ int main2(int argc, char** argv)
         Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
         
         // Compute shader pipeline example
-        Engine->RunComputeShader(0, false);
+        Engine->RunComputeShader(0);
+        Engine->DownloadComputeData(0, 0);
         Engine->RetrieveComputeData(0, 0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // retrieve updated data
         //std::cout << computeData[0].x; // debug print
 
@@ -78,7 +79,7 @@ int main2(int argc, char** argv)
 }
 
 // particle simulation example
-int main3(int argc, char** argv)
+int main(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
@@ -87,8 +88,8 @@ int main3(int argc, char** argv)
     Engine->UpdateVertexStructInfo(sizeof(diamond_particle_vertex), VK_PRIMITIVE_TOPOLOGY_POINT_LIST, diamond_particle_vertex::GetAttributeDescriptions, diamond_particle_vertex::GetBindingDescription);
 
     std::array<diamond_compute_buffer_info, 2> cpBuffers {
-        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true, true, false),
-        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, false, false) // used as the buffer for velocities
+        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true, true),
+        diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, false) // used as the buffer for velocities
     };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
     cpCreateInfo.enabled = true;
@@ -96,13 +97,6 @@ int main3(int argc, char** argv)
     cpCreateInfo.bufferInfoList = cpBuffers.data();
     cpCreateInfo.computeShaderPath = "../shaders/sim.comp.spv";
     cpCreateInfo.groupCountX = ceil(particleCount / 64.0);
-    cpCreateInfo.shouldBlockCPU = false;
-    cpCreateInfo.preRunSyncFlags = {
-        0, 0, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    };
-    cpCreateInfo.postRunSyncFlags = {
-        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT
-    };
 
     // initialze particle data
     std::vector<diamond_particle_vertex> computeData(particleCount);
@@ -126,7 +120,9 @@ int main3(int argc, char** argv)
         
         if (useCompute)
         {
-            Engine->RunComputeShader(0, frameCount == 0);
+            if (frameCount == 0)
+                Engine->UploadComputeData(0, 0);
+            Engine->RunComputeShader(0);
             Engine->DrawFromCompute(computeData.size()); // we still need to tell vulkan to draw the particles
         }
         else
@@ -153,7 +149,7 @@ int main3(int argc, char** argv)
 }
 
 // mandelbrot set example
-int main(int argc, char** argv)
+int main3(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
@@ -172,15 +168,8 @@ int main(int argc, char** argv)
     cpCreateInfo.computeShaderPath = "../shaders/mandel.comp.spv";
     cpCreateInfo.groupCountX = ceil(imageSize / 8);
     cpCreateInfo.groupCountY = ceil(imageSize / 8);
-    cpCreateInfo.shouldBlockCPU = false;
     cpCreateInfo.usePushConstants = true;
     cpCreateInfo.pushConstantsDataSize = sizeof(diamond_test_compute_constants);
-    cpCreateInfo.preRunSyncFlags = {
-        0, 0, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    };
-    cpCreateInfo.postRunSyncFlags = {
-        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT
-    };
 
     Engine->CreateComputePipeline(cpCreateInfo);
 
@@ -191,7 +180,7 @@ int main(int argc, char** argv)
     {
         Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)), -1);
 
-        Engine->RunComputeShader(0, false, &constants);
+        Engine->RunComputeShader(0, &constants);
         constants.zoom *= 0.995; 
         constants.offsetX = -constants.zoom * 0.2 + 1.48;
 

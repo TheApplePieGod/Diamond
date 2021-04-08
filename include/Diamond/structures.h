@@ -102,22 +102,20 @@ struct diamond_compute_buffer_info
     diamond_compute_buffer_info()
     {}
 
-    diamond_compute_buffer_info(int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
+    diamond_compute_buffer_info(int _size, bool _bindVertexBuffer, bool _staging)
     {
         identifier = "";
         size = _size;
         bindVertexBuffer = _bindVertexBuffer;
         staging = _staging;
-        copyBackToCPU = _copyBackToCPU;
     }
     
-    diamond_compute_buffer_info(const char* _identifier, int _size, bool _bindVertexBuffer, bool _staging, bool _copyBackToCPU)
+    diamond_compute_buffer_info(const char* _identifier, int _size, bool _bindVertexBuffer, bool _staging)
     {
         identifier = _identifier;
         size = _size;
         bindVertexBuffer = _bindVertexBuffer;
         staging = _staging;
-        copyBackToCPU = _copyBackToCPU;
     }
 
     diamond_compute_buffer_info(const char* _identifier)
@@ -129,7 +127,6 @@ struct diamond_compute_buffer_info
     int size = 0;
     bool bindVertexBuffer = false; // enable if this buffer should be compatible as a vertex buffer
     bool staging = false; // enable if this buffer should be copied to a strictly device local buffer after every map (note: when enabled, each buffer will take up two indexes)
-    bool copyBackToCPU = false; // if staging is enabled, enabling this will copy the device buffer back to local every frame for retrieval
 };
 
 struct diamond_compute_image_info
@@ -169,13 +166,6 @@ struct diamond_compute_image_info
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPipelineStageFlagBits.html
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkMemoryBarrier.html
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdPipelineBarrier.html
-struct diamond_compute_memory_synchronization
-{
-    VkAccessFlags srcAccessMask;
-    VkAccessFlags dstAccessMask;
-    VkPipelineStageFlags srcStageMask;
-    VkPipelineStageFlags dstStageMask;
-};
 
 struct diamond_compute_pipeline_create_info
 {
@@ -189,23 +179,8 @@ struct diamond_compute_pipeline_create_info
     uint32_t groupCountX = 1;
     uint32_t groupCountY = 1;
     uint32_t groupCountZ = 1;
-    bool shouldBlockCPU = true;
     bool usePushConstants = false;
     int pushConstantsDataSize = 0;
-
-    // for advanced use with integrating with different stages in the graphics pipeline
-    diamond_compute_memory_synchronization preRunSyncFlags = {
-        VK_ACCESS_HOST_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT,
-        VK_PIPELINE_STAGE_HOST_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-    };
-    diamond_compute_memory_synchronization postRunSyncFlags = {
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_HOST_READ_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_HOST_BIT
-    };
 };
 
 // Internal use

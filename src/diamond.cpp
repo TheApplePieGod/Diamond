@@ -475,38 +475,41 @@ void diamond::MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset,
     MapMemory(source, 1, dataSize, computePipelines[pipelineIndex].buffersMemory[bufferIndex], dataOffset);
 }
 
-void diamond::RunComputeShader(int pipelineIndex, bool dirty, void* pushConsantsData)
+void diamond::UploadComputeData(int pipelineIndex, int bufferIndex)
+{
+    if (computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].staging)
+    {
+        VkBufferCopy copy = {};
+        copy.size = computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].size;
+        
+        vkCmdCopyBuffer(computeBuffer, computePipelines[pipelineIndex].buffers[bufferIndex], computePipelines[pipelineIndex].deviceBuffers[bufferIndex], 1, &copy);
+    }
+}
+
+void diamond::DownloadComputeData(int pipelineIndex, int bufferIndex)
+{
+    if (computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].staging)
+    {
+        VkBufferCopy copy = {};
+        copy.size = computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].size;
+        
+        vkCmdCopyBuffer(computeBuffer, computePipelines[pipelineIndex].deviceBuffers[bufferIndex], computePipelines[pipelineIndex].buffers[bufferIndex], 1, &copy);
+    }
+}
+
+void diamond::RunComputeShader(int pipelineIndex, void* pushConsantsData)
 {
     const diamond_compute_pipeline& pipeline = computePipelines[pipelineIndex];
     const diamond_compute_pipeline_create_info& pipelineInfo = pipeline.pipelineInfo;
     if (pipelineInfo.enabled) // run compute pipeline if enabled
     {
-        // Bind compute pipeline
-        VkCommandBufferBeginInfo computeBeginInfo{};
-        computeBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        VkResult result = vkBeginCommandBuffer(computeBuffer, &computeBeginInfo);
-        Assert(result == VK_SUCCESS);
-        MemoryBarrier(computeBuffer, pipelineInfo.preRunSyncFlags.srcAccessMask, pipelineInfo.preRunSyncFlags.dstAccessMask, pipelineInfo.preRunSyncFlags.srcStageMask, pipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
+        //MemoryBarrier(computeBuffer, pipelineInfo.preRunSyncFlags.srcAccessMask, pipelineInfo.preRunSyncFlags.dstAccessMask, pipelineInfo.preRunSyncFlags.srcStageMask, pipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
         vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
         vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipelineLayout, 0, 1, &pipeline.descriptorSets[0], 0, nullptr);
 
         if (pipelineInfo.usePushConstants)
         {
             vkCmdPushConstants(computeBuffer, pipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, pipelineInfo.pushConstantsDataSize, pushConsantsData);
-        }
-
-        if (dirty)
-        {
-            for (int i = 0; i < pipelineInfo.bufferCount; i++)
-            {
-                if (pipelineInfo.bufferInfoList[i].staging)
-                {
-                    VkBufferCopy copy = {};
-                    copy.size = pipelineInfo.bufferInfoList[i].size;
-                    
-                    vkCmdCopyBuffer(computeBuffer, pipeline.buffers[i], pipeline.deviceBuffers[i], 1, &copy);
-                }
-            }
         }
 
         // dispatch compute pipeline
@@ -517,31 +520,8 @@ void diamond::RunComputeShader(int pipelineIndex, bool dirty, void* pushConsants
             std::min(pipelineInfo.groupCountZ, physicalDeviceProperties.limits.maxComputeWorkGroupCount[2])
         );
 
-        for (int i = 0; i < pipelineInfo.bufferCount; i++)
-        {
-            if (pipelineInfo.bufferInfoList[i].staging && pipelineInfo.bufferInfoList[i].copyBackToCPU)
-            {
-                VkBufferCopy copy = {};
-                copy.size = pipelineInfo.bufferInfoList[i].size;
-                
-                vkCmdCopyBuffer(computeBuffer, pipeline.deviceBuffers[i], pipeline.buffers[i], 1, &copy);
-            }
-        }
-
-        MemoryBarrier(computeBuffer, pipelineInfo.postRunSyncFlags.srcAccessMask, pipelineInfo.postRunSyncFlags.dstAccessMask, pipelineInfo.postRunSyncFlags.srcStageMask, pipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
-        result = vkEndCommandBuffer(computeBuffer);
-
-        // submit to queue
-        vkResetFences(logicalDevice, 1, &computeFence);
-        VkPipelineStageFlags waitFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &computeBuffer;
-        submitInfo.pWaitDstStageMask = &waitFlags;
-        vkQueueSubmit(computeQueue, 1, &submitInfo, computeFence);
-        if (pipelineInfo.shouldBlockCPU)
-            vkWaitForFences(logicalDevice, 1, &computeFence, true, UINT64_MAX); // optionally wait for queue fence
+        vkCmdPipelineBarrier(computeBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+        //MemoryBarrier(computeBuffer, pipelineInfo.postRunSyncFlags.srcAccessMask, pipelineInfo.postRunSyncFlags.dstAccessMask, pipelineInfo.postRunSyncFlags.srcStageMask, pipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
     }
 }
 
@@ -1297,12 +1277,12 @@ void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_comput
             if (createInfo.bufferInfoList[i].bindVertexBuffer)
                 baseFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
-            VkBufferUsageFlags hostFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+            VkBufferUsageFlags hostFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0) | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
             CreateBuffer(createInfo.bufferInfoList[i].size, hostFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, pipeline.buffers[i], pipeline.buffersMemory[i]);
 
             if (createInfo.bufferInfoList[i].staging)
             {
-                VkBufferUsageFlags deviceFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0) | (createInfo.bufferInfoList[i].copyBackToCPU ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0);
+                VkBufferUsageFlags deviceFlags = baseFlags | (createInfo.bufferInfoList[i].staging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0) | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
                 CreateBuffer(createInfo.bufferInfoList[i].size, deviceFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, pipeline.deviceBuffers[i], pipeline.deviceBuffersMemory[i]);
             }
         }
@@ -2037,6 +2017,12 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
 
     boundVertexCount = 0;
     boundIndexCount = 0;
+
+    // start recording compute command buffer
+    VkCommandBufferBeginInfo computeBeginInfo{};
+    computeBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    result = vkBeginCommandBuffer(computeBuffer, &computeBeginInfo);
+    Assert(result == VK_SUCCESS);
 }
 
 void diamond::EndFrame(glm::vec4 clearColor)
@@ -2046,7 +2032,21 @@ void diamond::EndFrame(glm::vec4 clearColor)
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), renderPassBuffer);
     #endif
 
-    VkResult result = vkEndCommandBuffer(renderPassBuffer);
+    // end compute buffer
+    VkResult result = vkEndCommandBuffer(computeBuffer);
+
+    // submit to queue
+    vkResetFences(logicalDevice, 1, &computeFence);
+    VkPipelineStageFlags waitFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &computeBuffer;
+    submitInfo.pWaitDstStageMask = &waitFlags;
+    vkQueueSubmit(computeQueue, 1, &submitInfo, computeFence);
+    //vkWaitForFences(logicalDevice, 1, &computeFence, true, UINT64_MAX); // optionally wait for queue fence
+
+    result = vkEndCommandBuffer(renderPassBuffer);
     Assert(result == VK_SUCCESS);
 
     // start command buffers and render recorded renderBuffer
