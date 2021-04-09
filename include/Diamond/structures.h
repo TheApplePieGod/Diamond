@@ -169,7 +169,6 @@ struct diamond_compute_image_info
 
 struct diamond_compute_pipeline_create_info
 {
-    bool enabled = false;
     diamond_compute_buffer_info* bufferInfoList = nullptr;
     int bufferCount = 0;
     diamond_compute_image_info* imageInfoList = nullptr;
@@ -181,6 +180,20 @@ struct diamond_compute_pipeline_create_info
     uint32_t groupCountZ = 1;
     bool usePushConstants = false;
     int pushConstantsDataSize = 0;
+};
+
+struct diamond_graphics_pipeline_create_info
+{
+    const char* vertexShaderPath = "";
+    const char* fragmentShaderPath = "";
+    int vertexSize = sizeof(diamond_vertex);
+    std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
+    VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
+    VkPrimitiveTopology vertexTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; // see https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPrimitiveTopology.html
+    bool useCustomPushConstants = false;
+    int pushConstantsDataSize = 0;
+    uint32_t maxVertexCount;
+    uint32_t maxIndexCount;
 };
 
 // Internal use
@@ -237,9 +250,9 @@ struct diamond_test_compute_buffer2
 
 struct diamond_test_compute_constants
 {
-    double zoom = 2.0;
-    double offsetX = 1.0;
-    double offsetY = 0.0;
+    float zoom = 2.0;
+    float offsetX = 1.0;
+    float offsetY = 0.0;
 };
 // ----------------------
 
@@ -281,6 +294,7 @@ struct diamond_swap_chain_support_details
 
 struct diamond_compute_pipeline
 {
+    bool enabled = true;
     std::vector<VkBuffer> buffers;
     std::vector<VkDeviceMemory> buffersMemory;
     std::vector<VkBuffer> deviceBuffers;
@@ -292,4 +306,18 @@ struct diamond_compute_pipeline
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     diamond_compute_pipeline_create_info pipelineInfo = {};
+};
+
+struct diamond_graphics_pipeline
+{
+    bool enabled = true;
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer indexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+    uint32_t boundIndexCount = 0;
+    uint32_t boundVertexCount = 0;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    diamond_graphics_pipeline_create_info pipelineInfo = {};
 };

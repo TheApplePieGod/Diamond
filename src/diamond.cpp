@@ -26,19 +26,13 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     framebufferResized = true;
 }
 
-void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndexCount, const char* windowName, const char* vertShaderPath, const char* fragShaderPath)
+void diamond::Initialize(int width, int height, const char* windowName)
 {
     #if DIAMOND_DEBUG
         std::cerr << "Initializing diamond in debug mode" << std::endl;
     #else
         std::cerr << "Initializing diamond in release mode" << std::endl;
     #endif
-
-    Assert(vertShaderPath != "");
-    Assert(fragShaderPath != "");
-    defaultVertexShader = vertShaderPath;
-    defaultFragmentShader = fragShaderPath;
-    defaultMaxVertexCount = maxVertexCount;
 
     // init glfw & create window
     {
@@ -177,6 +171,10 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
         deviceFeatures.samplerAnisotropy = VK_TRUE;
         deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
         
+        VkPhysicalDeviceRobustness2FeaturesEXT robustnessFeatures{};
+        robustnessFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT;
+        robustnessFeatures.pNext = nullptr;
+
         VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
         indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
         indexingFeatures.pNext = nullptr;
@@ -228,15 +226,15 @@ void diamond::Initialize(int width, int height, int maxVertexCount, int maxIndex
     // setup rest of pipeline
     CreateRenderPass();
     CreateDescriptorSetLayout();
-    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
+    //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
     // ------------------------
 
     CreateFrameBuffers();
 
-    CreateVertexBuffer(maxVertexCount);
+    //CreateVertexBuffer(maxVertexCount);
     CreateTextureSampler();
-    CreateIndexBuffer(maxIndexCount);
+    //CreateIndexBuffer(maxIndexCount);
     CreateUniformBuffers();
     CreateDescriptorPool();
     CreateDescriptorSets();
@@ -383,8 +381,6 @@ void diamond::SyncTextureUpdates()
     // cleanup old resources
     vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);
-    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
 
     #if DIAMOND_IMGUI
     CleanupImGui();
@@ -392,37 +388,22 @@ void diamond::SyncTextureUpdates()
 
     // recreate bindings
     CreateDescriptorSetLayout();
-    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateDescriptorPool();
     CreateDescriptorSets();
+
+    for (int i = 0; i < graphicsPipelines.size(); i++)
+    {
+        if (graphicsPipelines[i].enabled)
+        {
+            vkDestroyPipeline(logicalDevice, graphicsPipelines[i].pipeline, nullptr);
+            vkDestroyPipelineLayout(logicalDevice, graphicsPipelines[i].pipelineLayout, nullptr);
+            CreateGraphicsPipeline(graphicsPipelines[i]);
+        }
+    }
 
     #if DIAMOND_IMGUI
     CreateImGui();
     #endif
-}
-
-void diamond::UpdateShaders(const char* vertShaderPath, const char* fragShaderPath)
-{
-    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr); // todo: move this out of pipeline
-    CreateGraphicsPipeline(vertShaderPath, fragShaderPath);
-}
-
-void diamond::UpdateVertexStructInfo(int _vertexSize, VkPrimitiveTopology _vertexTopology, std::vector<VkVertexInputAttributeDescription> (*_getVertexAttributeDescriptions)(), VkVertexInputBindingDescription (*_getVertexBindingDescription)())
-{
-    vertexSize = _vertexSize;
-    vertexTopology = _vertexTopology;
-    getVertexAttributeDescriptions = _getVertexAttributeDescriptions;
-    getVertexBindingDescription = _getVertexBindingDescription;
-
-    vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
-    vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
-
-    CreateVertexBuffer(defaultMaxVertexCount);
-
-    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr); // todo: move this out of pipeline
-    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
 }
 
 int diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createInfo)
@@ -451,8 +432,52 @@ int diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createIn
     }
 
     RecreateCompute(pipeline, createInfo);
+
+    for (int i = 0; i < computePipelines.size(); i++)
+    {
+        if (!computePipelines[i].enabled)
+        {
+            computePipelines[i] = pipeline;
+            return i;
+        }
+    }
+
     computePipelines.push_back(pipeline);
     return computePipelines.size() - 1;
+}
+
+void diamond::DeleteComputePipeline(int pipelineIndex)
+{
+    vkDeviceWaitIdle(logicalDevice);
+    CleanupCompute(computePipelines[pipelineIndex]);
+}
+
+int diamond::CreateGraphicsPipeline(diamond_graphics_pipeline_create_info createInfo)
+{
+    diamond_graphics_pipeline pipeline = {};
+    pipeline.pipelineInfo = createInfo;
+
+    CreateGraphicsPipeline(pipeline);
+    CreateVertexBuffer(createInfo.vertexSize, createInfo.maxVertexCount, pipeline.vertexBuffer, pipeline.vertexBufferMemory);
+    CreateIndexBuffer(createInfo.maxIndexCount, pipeline.indexBuffer, pipeline.indexBufferMemory);
+
+    for (int i = 0; i < graphicsPipelines.size(); i++)
+    {
+        if (!graphicsPipelines[i].enabled)
+        {
+            graphicsPipelines[i] = pipeline;
+            return i;
+        }
+    }
+
+    graphicsPipelines.push_back(pipeline);
+    return graphicsPipelines.size() - 1;
+}
+
+void diamond::DeleteGraphicsPipeline(int pipelineIndex)
+{
+    vkDeviceWaitIdle(logicalDevice);
+    CleanupGraphics(graphicsPipelines[pipelineIndex]);
 }
 
 int diamond::ComputePipelineFirstTextureIndex(int pipelineIndex)
@@ -483,6 +508,24 @@ void diamond::UploadComputeData(int pipelineIndex, int bufferIndex)
         copy.size = computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].size;
         
         vkCmdCopyBuffer(computeBuffer, computePipelines[pipelineIndex].buffers[bufferIndex], computePipelines[pipelineIndex].deviceBuffers[bufferIndex], 1, &copy);
+        
+            VkBufferMemoryBarrier ub_barrier = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .buffer = computePipelines[pipelineIndex].deviceBuffers[bufferIndex],
+            .offset = 0,
+            .size = copy.size,
+        };
+
+        vkCmdPipelineBarrier(
+        computeBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0, NULL,
+        1, &ub_barrier,
+        0, NULL);
     }
 }
 
@@ -501,9 +544,8 @@ void diamond::RunComputeShader(int pipelineIndex, void* pushConsantsData)
 {
     const diamond_compute_pipeline& pipeline = computePipelines[pipelineIndex];
     const diamond_compute_pipeline_create_info& pipelineInfo = pipeline.pipelineInfo;
-    if (pipelineInfo.enabled) // run compute pipeline if enabled
+    if (pipeline.enabled) // run compute pipeline if enabled
     {
-        //MemoryBarrier(computeBuffer, pipelineInfo.preRunSyncFlags.srcAccessMask, pipelineInfo.preRunSyncFlags.dstAccessMask, pipelineInfo.preRunSyncFlags.srcStageMask, pipelineInfo.preRunSyncFlags.dstStageMask); // pre run sync
         vkCmdBindPipeline(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
         vkCmdBindDescriptorSets(computeBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipelineLayout, 0, 1, &pipeline.descriptorSets[0], 0, nullptr);
 
@@ -520,8 +562,9 @@ void diamond::RunComputeShader(int pipelineIndex, void* pushConsantsData)
             std::min(pipelineInfo.groupCountZ, physicalDeviceProperties.limits.maxComputeWorkGroupCount[2])
         );
 
-        vkCmdPipelineBarrier(computeBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
-        //MemoryBarrier(computeBuffer, pipelineInfo.postRunSyncFlags.srcAccessMask, pipelineInfo.postRunSyncFlags.dstAccessMask, pipelineInfo.postRunSyncFlags.srcStageMask, pipelineInfo.postRunSyncFlags.dstStageMask); // post run sync
+        //vkCmdPipelineBarrier(computeBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+        MemoryBarrier(computeBuffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT); // post run sync
+        MemoryBarrier(computeBuffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT); // post run sync
     }
 }
 
@@ -530,55 +573,83 @@ glm::vec3 diamond::GetDeviceMaxWorkgroupCount()
     return glm::vec3(physicalDeviceProperties.limits.maxComputeWorkGroupCount[0], physicalDeviceProperties.limits.maxComputeWorkGroupCount[1], physicalDeviceProperties.limits.maxComputeWorkGroupCount[2]);
 }
 
-void diamond::BindVertices(const void* vertices, u32 vertexCount)
+void diamond::BindVertices(int pipelineIndex, const void* vertices, u32 vertexCount)
 {
-    BindVertices(const_cast<void*>(vertices), vertexCount);
+    BindVertices(pipelineIndex, const_cast<void*>(vertices), vertexCount);
 }
 
-void diamond::BindVertices(void* vertices, u32 vertexCount)
+void diamond::BindVertices(int pipelineIndex, void* vertices, u32 vertexCount)
 {
-    MapMemory(vertices, vertexSize, vertexCount, vertexBufferMemory, boundVertexCount);
-    boundVertexCount += vertexCount;
+    MapMemory(vertices, graphicsPipelines[pipelineIndex].pipelineInfo.vertexSize, vertexCount, graphicsPipelines[pipelineIndex].vertexBufferMemory, graphicsPipelines[pipelineIndex].boundVertexCount);
+    graphicsPipelines[pipelineIndex].boundVertexCount += vertexCount;
 }
 
-void diamond::BindIndices(const u16* indices, u32 indexCount)
+void diamond::BindIndices(int pipelineIndex, const u16* indices, u32 indexCount)
 {
-    BindIndices(const_cast<u16*>(indices), indexCount);
+    BindIndices(pipelineIndex, const_cast<u16*>(indices), indexCount);
 }
 
-void diamond::BindIndices(u16* indices, u32 indexCount)
+void diamond::BindIndices(int pipelineIndex, u16* indices, u32 indexCount)
 {
-    MapMemory((u16*)indices, sizeof(u16), indexCount, indexBufferMemory, boundIndexCount);
-    boundIndexCount += indexCount;
+    MapMemory((u16*)indices, sizeof(u16), indexCount, graphicsPipelines[pipelineIndex].indexBufferMemory, graphicsPipelines[pipelineIndex].boundIndexCount);
+    graphicsPipelines[pipelineIndex].boundIndexCount += indexCount;
 }
 
-void diamond::Draw(u32 vertexCount, int textureIndex, diamond_transform objectTransform)
+void diamond::Draw(int pipelineIndex, u32 vertexCount, int textureIndex, void* pushConstantsData)
+{
+    if (graphicsPipelines[pipelineIndex].pipelineInfo.useCustomPushConstants)
+    {
+        vkCmdPushConstants(renderPassBuffer, graphicsPipelines[pipelineIndex].pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, graphicsPipelines[pipelineIndex].pipelineInfo.pushConstantsDataSize, pushConstantsData);
+    }
+    vkCmdDraw(renderPassBuffer, vertexCount, 1, graphicsPipelines[pipelineIndex].boundVertexCount - vertexCount, 0);
+}
+
+void diamond::Draw(int pipelineIndex, u32 vertexCount, int textureIndex, diamond_transform objectTransform)
 {
     diamond_object_data data;
     data.textureIndex = textureIndex;
     data.model = GenerateModelMatrix(objectTransform);
 
-    vkCmdPushConstants(renderPassBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(diamond_object_data), &data);
-    vkCmdDraw(renderPassBuffer, vertexCount, 1, boundVertexCount - vertexCount, 0);
+    vkCmdPushConstants(renderPassBuffer, graphicsPipelines[pipelineIndex].pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(diamond_object_data), &data);
+    vkCmdDraw(renderPassBuffer, vertexCount, 1, graphicsPipelines[pipelineIndex].boundVertexCount - vertexCount, 0);
 }
 
-void diamond::DrawIndexed(u32 indexCount, u32 vertexCount, int textureIndex, diamond_transform objectTransform)
+void diamond::DrawIndexed(int pipelineIndex, u32 indexCount, u32 vertexCount, int textureIndex, void* pushConstantsData)
+{
+    if (graphicsPipelines[pipelineIndex].pipelineInfo.useCustomPushConstants)
+    {
+        vkCmdPushConstants(renderPassBuffer, graphicsPipelines[pipelineIndex].pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, graphicsPipelines[pipelineIndex].pipelineInfo.pushConstantsDataSize, pushConstantsData);
+    }
+    vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, graphicsPipelines[pipelineIndex].boundIndexCount - indexCount, graphicsPipelines[pipelineIndex].boundVertexCount - vertexCount, 0);
+}
+
+void diamond::DrawIndexed(int pipelineIndex, u32 indexCount, u32 vertexCount, int textureIndex, diamond_transform objectTransform)
 {
     diamond_object_data data;
     data.textureIndex = textureIndex;
     data.model = GenerateModelMatrix(objectTransform);
 
-    vkCmdPushConstants(renderPassBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(diamond_object_data), &data);
-    vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, boundIndexCount - indexCount, boundVertexCount - vertexCount, 0);
+    vkCmdPushConstants(renderPassBuffer, graphicsPipelines[pipelineIndex].pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(diamond_object_data), &data);
+    vkCmdDrawIndexed(renderPassBuffer, indexCount, 1, graphicsPipelines[pipelineIndex].boundIndexCount - indexCount, graphicsPipelines[pipelineIndex].boundVertexCount - vertexCount, 0);
 }
 
-void diamond::DrawFromCompute(u32 vertexCount)
+void diamond::DrawFromCompute(int pipelineIndex, int bufferIndex, u32 vertexCount)
 {
+    VkDeviceSize offsets[] = { 0 };
+    if (computePipelines[pipelineIndex].pipelineInfo.bufferInfoList[bufferIndex].staging)
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[pipelineIndex].deviceBuffers[bufferIndex], offsets);
+    else
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[pipelineIndex].buffers[bufferIndex], offsets);
     vkCmdDraw(renderPassBuffer, vertexCount, 1, 0, 0);
+
+    if (boundGraphicsPipelineIndex != -1)
+    {
+        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &graphicsPipelines[boundGraphicsPipelineIndex].vertexBuffer, offsets);
+    }
 }
 
 // todo: bake quad vertex & index data?
-void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color)
+void diamond::DrawQuad(int pipelineIndex, int textureIndex, diamond_transform quadTransform, glm::vec4 color)
 {
     const diamond_vertex vertices[] =
     {
@@ -592,12 +663,12 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
         0, 3, 2, 2, 1, 0
     };
 
-    BindVertices(vertices, 4);
-    BindIndices(indices, 6);
-    DrawIndexed(6, 4, textureIndex, quadTransform);
+    BindVertices(pipelineIndex, vertices, 4);
+    BindIndices(pipelineIndex, indices, 6);
+    DrawIndexed(pipelineIndex, 6, 4, textureIndex, quadTransform);
 }
 
-void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
+void diamond::DrawQuadsTransform(int pipelineIndex, int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
 {
     if (quadVertices.size() < quadCount * 4)
         quadVertices.resize(quadCount * 4);
@@ -634,12 +705,12 @@ void diamond::DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTra
         quadIndices[indicesIndex + 5] = baseIndices[5] + vertexIndex;
     }
 
-    BindVertices(quadVertices.data(), static_cast<u32>(quadCount * 4));
-    BindIndices(quadIndices.data(), static_cast<u32>(quadCount * 6));
-    DrawIndexed(static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
+    BindVertices(pipelineIndex, quadVertices.data(), static_cast<u32>(quadCount * 4));
+    BindIndices(pipelineIndex, quadIndices.data(), static_cast<u32>(quadCount * 6));
+    DrawIndexed(pipelineIndex, static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
 }
 
-void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
+void diamond::DrawQuadsOffsetScale(int pipelineIndex, int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform, glm::vec4* colors, glm::vec4* texCoords)
 {
     if (quadVertices.size() < quadCount * 4)
         quadVertices.resize(quadCount * 4);
@@ -675,9 +746,9 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
         quadIndices[indicesIndex + 5] = baseIndices[5] + vertexIndex;
     }
 
-    BindVertices(quadVertices.data(), static_cast<u32>(quadCount * 4));
-    BindIndices(quadIndices.data(), static_cast<u32>(quadCount * 6));
-    DrawIndexed(static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
+    BindVertices(pipelineIndex, quadVertices.data(), static_cast<u32>(quadCount * 4));
+    BindIndices(pipelineIndex, quadIndices.data(), static_cast<u32>(quadCount * 6));
+    DrawIndexed(pipelineIndex, static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
 }
 
 glm::mat4 diamond::GenerateViewMatrix(glm::vec2 cameraPosition)
@@ -1036,9 +1107,18 @@ void diamond::CreateDescriptorSets()
         for (int i = 0; i < textureArray.size(); i++)
         {
             VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = textureArray[i].imageLayout;
-            imageInfo.imageView = textureArray[i].imageView;
             imageInfo.sampler = textureSampler;
+
+            if (textureArray[i].id != -1)
+            {
+                imageInfo.imageLayout = textureArray[i].imageLayout;
+                imageInfo.imageView = textureArray[i].imageView;
+            }
+            else // push the default texture if the tex is disabled
+            {
+                imageInfo.imageLayout = textureArray[0].imageLayout;
+                imageInfo.imageView = textureArray[0].imageView;
+            }
 
             images[i] = imageInfo;
         }
@@ -1146,21 +1226,21 @@ void diamond::CleanupSwapChain()
     }
 
     vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<u32>(commandBuffers.size()), commandBuffers.data());
-    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
-    vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+    // vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+    // vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
+    // vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
     vkDestroyImageView(logicalDevice, colorImageView, nullptr);
     vkDestroyImage(logicalDevice, colorImage, nullptr);
     vkFreeMemory(logicalDevice, colorImageMemory, nullptr);
 
-    for (int i = 0; i < swapChain.swapChainImages.size(); i++)
-    {
-        vkDestroyBuffer(logicalDevice, uniformBuffers[i], nullptr);
-        vkFreeMemory(logicalDevice, uniformBuffersMemory[i], nullptr);
-    }
+    // for (int i = 0; i < swapChain.swapChainImages.size(); i++)
+    // {
+    //     vkDestroyBuffer(logicalDevice, uniformBuffers[i], nullptr);
+    //     vkFreeMemory(logicalDevice, uniformBuffersMemory[i], nullptr);
+    // }
 
-    vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+    //vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
     for (int i = 0; i < swapChain.swapChainImageViews.size(); i++)
     {
@@ -1170,7 +1250,7 @@ void diamond::CleanupSwapChain()
     vkDestroySwapchainKHR(logicalDevice, swapChain.swapChain, nullptr);
 
     #if DIAMOND_IMGUI
-    CleanupImGui();
+    //CleanupImGui();
     #endif
 }
 
@@ -1196,64 +1276,85 @@ void diamond::RecreateSwapChain()
 
     // recreate
     CreateSwapChain();
-    CreateRenderPass();
-    CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
+    //CreateRenderPass();
+    //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
     CreateFrameBuffers();
-    CreateUniformBuffers();
-    CreateDescriptorPool();
-    CreateDescriptorSets();
+    //CreateUniformBuffers();
+    //CreateDescriptorPool();
+    //CreateDescriptorSets();
     CreateCommandBuffers();
 
     #if DIAMOND_IMGUI
-    CreateImGui();
+    //CreateImGui();
     #endif
 }
 
 void diamond::CleanupCompute(diamond_compute_pipeline& pipeline)
 {
-    vkDestroyPipeline(logicalDevice, pipeline.pipeline, nullptr);
-    vkDestroyPipelineLayout(logicalDevice, pipeline.pipelineLayout, nullptr);
-    vkDestroyDescriptorPool(logicalDevice, pipeline.descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(logicalDevice, pipeline.descriptorSetLayout, nullptr);
-    
-    pipeline.pipeline = VK_NULL_HANDLE;
-    pipeline.pipelineLayout = VK_NULL_HANDLE;
-    pipeline.descriptorPool = VK_NULL_HANDLE;
-    pipeline.descriptorSetLayout = VK_NULL_HANDLE;
-
-    for (int i = 0; i < pipeline.buffers.size(); i++)
+    if (pipeline.enabled)
     {
-        if (std::find(freedBuffers.begin(), freedBuffers.end(), pipeline.pipelineInfo.bufferInfoList[i].identifier) == freedBuffers.end())
+        vkDestroyPipeline(logicalDevice, pipeline.pipeline, nullptr);
+        vkDestroyPipelineLayout(logicalDevice, pipeline.pipelineLayout, nullptr);
+        vkDestroyDescriptorPool(logicalDevice, pipeline.descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(logicalDevice, pipeline.descriptorSetLayout, nullptr);
+        
+        pipeline.pipeline = VK_NULL_HANDLE;
+        pipeline.pipelineLayout = VK_NULL_HANDLE;
+        pipeline.descriptorPool = VK_NULL_HANDLE;
+        pipeline.descriptorSetLayout = VK_NULL_HANDLE;
+
+        for (int i = 0; i < pipeline.buffers.size(); i++)
         {
-            vkDestroyBuffer(logicalDevice, pipeline.buffers[i], nullptr);
-            vkFreeMemory(logicalDevice, pipeline.buffersMemory[i], nullptr);
-            vkDestroyBuffer(logicalDevice, pipeline.deviceBuffers[i], nullptr);
-            vkFreeMemory(logicalDevice, pipeline.deviceBuffersMemory[i], nullptr);
+            if (std::find(freedBuffers.begin(), freedBuffers.end(), pipeline.pipelineInfo.bufferInfoList[i].identifier) == freedBuffers.end())
+            {
+                vkDestroyBuffer(logicalDevice, pipeline.buffers[i], nullptr);
+                vkFreeMemory(logicalDevice, pipeline.buffersMemory[i], nullptr);
+                vkDestroyBuffer(logicalDevice, pipeline.deviceBuffers[i], nullptr);
+                vkFreeMemory(logicalDevice, pipeline.deviceBuffersMemory[i], nullptr);
 
-            pipeline.buffers[i] = VK_NULL_HANDLE;
-            pipeline.buffersMemory[i] = VK_NULL_HANDLE;
-            pipeline.deviceBuffers[i] = VK_NULL_HANDLE;
-            pipeline.deviceBuffersMemory[i] = VK_NULL_HANDLE;
+                pipeline.buffers[i] = VK_NULL_HANDLE;
+                pipeline.buffersMemory[i] = VK_NULL_HANDLE;
+                pipeline.deviceBuffers[i] = VK_NULL_HANDLE;
+                pipeline.deviceBuffersMemory[i] = VK_NULL_HANDLE;
 
-            freedBuffers.push_back(pipeline.pipelineInfo.bufferInfoList[i].identifier);
+                freedBuffers.push_back(pipeline.pipelineInfo.bufferInfoList[i].identifier);
+            }
         }
-    }
 
-    for (int i = 0; i < pipeline.textureIndexes.size(); i++)
+        for (int i = 0; i < pipeline.textureIndexes.size(); i++)
+        {
+            diamond_texture& entry = textureArray[pipeline.textureIndexes[i]];
+            if (entry.id != -1) // todo: texture id 'free list'
+            {
+                vkDestroyImageView(logicalDevice, entry.imageView, nullptr);
+                vkDestroyImage(logicalDevice, entry.image, nullptr);
+                vkFreeMemory(logicalDevice, entry.memory, nullptr);
+                entry.id = -1;
+            }
+        }
+
+        if (pipeline.pipelineInfo.bufferCount > 0)
+            delete[] pipeline.pipelineInfo.bufferInfoList;
+        if (pipeline.pipelineInfo.imageCount > 0)
+            delete[] pipeline.pipelineInfo.imageInfoList;
+
+        pipeline.enabled = false;
+    }
+}
+
+void diamond::CleanupGraphics(diamond_graphics_pipeline& pipeline)
+{
+    if (pipeline.enabled)
     {
-        diamond_texture& entry = textureArray[pipeline.textureIndexes[i]];
-        if (entry.id != -1)
-        {
-            vkDestroyImageView(logicalDevice, entry.imageView, nullptr);
-            vkDestroyImage(logicalDevice, entry.image, nullptr);
-            vkFreeMemory(logicalDevice, entry.memory, nullptr);
-            entry.id = -1;
-        }
+        vkDestroyBuffer(logicalDevice, pipeline.vertexBuffer, nullptr);
+        vkFreeMemory(logicalDevice, pipeline.vertexBufferMemory, nullptr);
+        vkDestroyBuffer(logicalDevice, pipeline.indexBuffer, nullptr);
+        vkFreeMemory(logicalDevice, pipeline.indexBufferMemory, nullptr);
+        vkDestroyPipeline(logicalDevice, pipeline.pipeline, nullptr);
+        vkDestroyPipelineLayout(logicalDevice, pipeline.pipelineLayout, nullptr);
+        pipeline.enabled = false;
     }
-
-    delete[] pipeline.pipelineInfo.bufferInfoList;
-    delete[] pipeline.pipelineInfo.imageInfoList;
 }
 
 void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_compute_pipeline_create_info createInfo)
@@ -1269,23 +1370,29 @@ void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_comput
         bool found = false;
         if (identifier != "") // compare to other pipelines and copy data
         {
+            // remove it from the previously freed buffers
+            freedBuffers.erase(std::remove(freedBuffers.begin(), freedBuffers.end(), identifier), freedBuffers.end());
+
             for (int j = 0; j < computePipelines.size(); j++)
             {
-                for (int k = 0; k < computePipelines[j].pipelineInfo.bufferCount; k++)
+                if (computePipelines[j].enabled)
                 {
-                    if (std::string(computePipelines[j].pipelineInfo.bufferInfoList[k].identifier) == identifier) // match found
+                    for (int k = 0; k < computePipelines[j].pipelineInfo.bufferCount; k++)
                     {
-                        pipeline.pipelineInfo.bufferInfoList[i] = computePipelines[j].pipelineInfo.bufferInfoList[k];
-                        pipeline.buffers[i] = computePipelines[j].buffers[k];
-                        pipeline.buffersMemory[i] = computePipelines[j].buffersMemory[k];
-                        pipeline.deviceBuffers[i] = computePipelines[j].deviceBuffers[k];
-                        pipeline.deviceBuffersMemory[i] = computePipelines[j].deviceBuffersMemory[k];
-                        found = true;
-                        break;
+                        if (std::string(computePipelines[j].pipelineInfo.bufferInfoList[k].identifier) == identifier) // match found
+                        {
+                            pipeline.pipelineInfo.bufferInfoList[i] = computePipelines[j].pipelineInfo.bufferInfoList[k];
+                            pipeline.buffers[i] = computePipelines[j].buffers[k];
+                            pipeline.buffersMemory[i] = computePipelines[j].buffersMemory[k];
+                            pipeline.deviceBuffers[i] = computePipelines[j].deviceBuffers[k];
+                            pipeline.deviceBuffersMemory[i] = computePipelines[j].deviceBuffersMemory[k];
+                            found = true;
+                            break;
+                        }
                     }
+                    if (found)
+                        break;
                 }
-                if (found)
-                    break;
             }
         }
         
@@ -1314,18 +1421,21 @@ void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_comput
         {
             for (int j = 0; j < computePipelines.size(); j++)
             {
-                for (int k = 0; k < computePipelines[j].pipelineInfo.imageCount; k++)
+                if (computePipelines[j].enabled)
                 {
-                    if (std::string(computePipelines[j].pipelineInfo.imageInfoList[k].identifier) == identifier) // match found
+                    for (int k = 0; k < computePipelines[j].pipelineInfo.imageCount; k++)
                     {
-                        pipeline.pipelineInfo.imageInfoList[i] = computePipelines[j].pipelineInfo.imageInfoList[k];
-                        pipeline.textureIndexes.push_back(computePipelines[j].textureIndexes[k]);
-                        found = true;
-                        break;
+                        if (std::string(computePipelines[j].pipelineInfo.imageInfoList[k].identifier) == identifier) // match found
+                        {
+                            pipeline.pipelineInfo.imageInfoList[i] = computePipelines[j].pipelineInfo.imageInfoList[k];
+                            pipeline.textureIndexes.push_back(computePipelines[j].textureIndexes[k]);
+                            found = true;
+                            break;
+                        }
                     }
+                    if (found)
+                        break;
                 }
-                if (found)
-                    break;
             }
         }
         
@@ -1370,7 +1480,7 @@ void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_comput
     SyncTextureUpdates();
 
     CreateComputeDescriptorSetLayout(pipeline, createInfo.bufferCount, createInfo.imageCount);
-    CreateComputePipeline(pipeline, createInfo.computeShaderPath, createInfo.entryFunctionName);
+    CreateComputePipeline(pipeline);
     CreateComputeDescriptorPool(pipeline, createInfo.bufferCount, createInfo.imageCount);
     CreateComputeDescriptorSets(pipeline, createInfo.bufferCount, createInfo.imageCount, createInfo.bufferInfoList);
 }
@@ -1523,30 +1633,30 @@ void diamond::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemory
     Assert(result == VK_SUCCESS);
 }
 
-void diamond::CreateVertexBuffer(int maxVertexCount)
+void diamond::CreateVertexBuffer(int vertexSize, int maxVertexCount, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
 {
     VkDeviceSize bufferSize = vertexSize * maxVertexCount;
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 }
 
-void diamond::CreateIndexBuffer(int maxIndexCount)
+void diamond::CreateIndexBuffer(int maxIndexCount, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory)
 {
     VkDeviceSize bufferSize = sizeof(u16) * maxIndexCount;
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffer, indexBufferMemory);
 }
 
-void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fragShaderPath)
+void diamond::CreateGraphicsPipeline(diamond_graphics_pipeline& pipeline)
 {
-    VkShaderModule vertShader = CreateShaderModule(vertShaderPath);
-    VkShaderModule fragShader = CreateShaderModule(fragShaderPath);
+    VkShaderModule vertShader = CreateShaderModule(pipeline.pipelineInfo.vertexShaderPath);
+    VkShaderModule fragShader = CreateShaderModule(pipeline.pipelineInfo.fragmentShaderPath);
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {
         CreateShaderStage(vertShader, VK_SHADER_STAGE_VERTEX_BIT),
         CreateShaderStage(fragShader, VK_SHADER_STAGE_FRAGMENT_BIT)
     };
 
-    auto bindingDescription = getVertexBindingDescription();
-    auto attributeDescriptions = getVertexAttributeDescriptions();
+    auto bindingDescription = pipeline.pipelineInfo.getVertexBindingDescription();
+    auto attributeDescriptions = pipeline.pipelineInfo.getVertexAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1557,7 +1667,7 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = vertexTopology;
+    inputAssembly.topology = pipeline.pipelineInfo.vertexTopology;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
     VkViewport viewport{};
@@ -1624,7 +1734,8 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
 
     VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_LINE_WIDTH
+        VK_DYNAMIC_STATE_SCISSOR
+        //VK_DYNAMIC_STATE_LINE_WIDTH
     };
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -1642,7 +1753,7 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstants;
-    VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+    VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipeline.pipelineLayout);
     Assert(result == VK_SUCCESS);
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -1656,22 +1767,22 @@ void diamond::CreateGraphicsPipeline(const char* vertShaderPath, const char* fra
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = nullptr; // Optional
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = nullptr; // Optional
-    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.pDynamicState = &dynamicState; // Optional
+    pipelineInfo.layout = pipeline.pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
-    result = vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
+    result = vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline.pipeline);
     Assert(result == VK_SUCCESS);
 
     vkDestroyShaderModule(logicalDevice, vertShader, nullptr);
     vkDestroyShaderModule(logicalDevice, fragShader, nullptr);
 }
 
-void diamond::CreateComputePipeline(diamond_compute_pipeline& pipeline, const char* compShaderPath, const char* entryFunctionName)
+void diamond::CreateComputePipeline(diamond_compute_pipeline& pipeline)
 {
-    VkShaderModule module = CreateShaderModule(compShaderPath);
+    VkShaderModule computeModule = CreateShaderModule(pipeline.pipelineInfo.computeShaderPath);
 
     VkPushConstantRange pushConstants{};
     pushConstants.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -1690,13 +1801,13 @@ void diamond::CreateComputePipeline(diamond_compute_pipeline& pipeline, const ch
     VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
     info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    info.stage.module = module;
-    info.stage.pName = entryFunctionName;
+    info.stage.module = computeModule;
+    info.stage.pName = pipeline.pipelineInfo.entryFunctionName;
     info.layout = pipeline.pipelineLayout;
     result = vkCreateComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline.pipeline);
     Assert(result == VK_SUCCESS);
 
-    vkDestroyShaderModule(logicalDevice, module, nullptr);
+    vkDestroyShaderModule(logicalDevice, computeModule, nullptr);
 }
 
 void diamond::CreateDescriptorSetLayout()
@@ -1981,7 +2092,7 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix, int computePipelineIndex, int computeVertexBufferIndex)
+void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix)
 {
     frameStartTime = std::chrono::high_resolution_clock::now();
 
@@ -2022,19 +2133,25 @@ void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, g
     result = vkBeginCommandBuffer(renderPassBuffer, &secondaryBeginInfo);
     Assert(result == VK_SUCCESS);
 
-    VkDeviceSize offsets[] = { 0 };
-    if (computeVertexBufferIndex == -1 || computePipelineIndex == -1)
-        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &vertexBuffer, offsets);
-    else if (computePipelines[computePipelineIndex].pipelineInfo.bufferInfoList[computeVertexBufferIndex].staging)
-        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[computePipelineIndex].deviceBuffers[computeVertexBufferIndex], offsets);
-    else
-        vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &computePipelines[computePipelineIndex].buffers[computeVertexBufferIndex], offsets);
-    vkCmdBindIndexBuffer(renderPassBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-    vkCmdBindDescriptorSets(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[nextImageIndex], 0, nullptr);
-    vkCmdBindPipeline(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float) swapChain.swapChainExtent.width;
+    viewport.height = (float) swapChain.swapChainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(renderPassBuffer, 0, 1, &viewport);
 
-    boundVertexCount = 0;
-    boundIndexCount = 0;
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapChain.swapChainExtent;
+    vkCmdSetScissor(renderPassBuffer, 0, 1, &scissor);
+
+    for (int i = 0; i < graphicsPipelines.size(); i++)
+    {
+        graphicsPipelines[i].boundIndexCount = 0;
+        graphicsPipelines[i].boundVertexCount = 0;
+    }
 
     // start recording compute command buffer
     VkCommandBufferBeginInfo computeBeginInfo{};
@@ -2112,6 +2229,19 @@ void diamond::EndFrame(glm::vec4 clearColor)
     fps = 1.f / (frameDelta / 1000.f);
 }
 
+void diamond::SetGraphicsPipeline(int pipelineIndex)
+{
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(renderPassBuffer, 0, 1, &graphicsPipelines[pipelineIndex].vertexBuffer, offsets);
+    vkCmdBindIndexBuffer(renderPassBuffer, graphicsPipelines[pipelineIndex].indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindPipeline(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[pipelineIndex].pipeline);
+
+    // todo: move to beginframe ?
+    vkCmdBindDescriptorSets(renderPassBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[pipelineIndex].pipelineLayout, 0, 1, &descriptorSets[nextImageIndex], 0, nullptr);
+
+    boundGraphicsPipelineIndex = pipelineIndex;
+}
+
 void diamond::MemoryBarrier(VkCommandBuffer cmd, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
 {
     VkMemoryBarrier barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
@@ -2181,21 +2311,25 @@ void diamond::Cleanup()
     #endif
 
     CleanupSwapChain();
+    vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
     vkDestroySampler(logicalDevice, textureSampler, nullptr);
 
     for (int i = 0; i < textureArray.size(); i++)
     {
-        vkDestroyImageView(logicalDevice, textureArray[i].imageView, nullptr);
-        vkDestroyImage(logicalDevice, textureArray[i].image, nullptr);
-        vkFreeMemory(logicalDevice, textureArray[i].memory, nullptr);
-        textureArray[i].id = -1;
+        if (textureArray[i].id != -1)
+        {
+            vkDestroyImageView(logicalDevice, textureArray[i].imageView, nullptr);
+            vkDestroyImage(logicalDevice, textureArray[i].image, nullptr);
+            vkFreeMemory(logicalDevice, textureArray[i].memory, nullptr);
+            textureArray[i].id = -1;
+        }
     }
 
-    vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
-    vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
-    vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
-    vkFreeMemory(logicalDevice, indexBufferMemory, nullptr);
+    for (int i = 0; i < graphicsPipelines.size(); i++)
+    {
+        CleanupGraphics(graphicsPipelines[i]);
+    }
 
     vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);
 
@@ -2238,6 +2372,11 @@ bool diamond::IsRunning()
 glm::vec2 diamond::GetWindowSize()
 {
     return glm::vec2(swapChain.swapChainExtent.width, swapChain.swapChainExtent.height);
+}
+
+void diamond::SetWindowSize(glm::vec2 size)
+{
+    glfwSetWindowSize(window, static_cast<int>(size.x), static_cast<int>(size.y));
 }
 
 f32 diamond::GetAspectRatio()
