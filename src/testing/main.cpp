@@ -9,7 +9,7 @@ int main2(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
-    Engine->Initialize(800, 600, "Diamond Basic Example");
+    Engine->Initialize(800, 600, "Diamond Basic Example", "../../images/default-texture.png");
 
     int particleCount = 100000;
     std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true) };
@@ -29,12 +29,9 @@ int main2(int argc, char** argv)
     gpCreateInfo.maxIndexCount = 100000;
     Engine->CreateGraphicsPipeline(gpCreateInfo);
 
-    Engine->RegisterTexture("../images/test.png");
-    Engine->RegisterTexture("../images/chev.jpg"); 
+    Engine->RegisterTexture("../../images/test.png");
+    Engine->RegisterTexture("../../images/chev.jpg"); 
     Engine->SyncTextureUpdates();
-
-    f32 deltaTime = 0.f;
-    f32 fps = 0.f;
 
     int quadCount = 10; 
     std::vector<glm::vec4> quadOffsetScales(quadCount);
@@ -49,7 +46,6 @@ int main2(int argc, char** argv)
 
     while (Engine->IsRunning())
     {
-        auto start = std::chrono::high_resolution_clock::now();
         Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
         
         Engine->SetGraphicsPipeline(0);
@@ -65,20 +61,17 @@ int main2(int argc, char** argv)
         quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = 45.f;
         quadTransform.scale = { 500.f ,1000.f };
-        Engine->DrawQuad(0, 1, quadTransform);
+        Engine->DrawQuad(1, quadTransform);
 
         quadTransform.location = { 300.f, 0.f };
         quadTransform.rotation = -45.f;
         quadTransform.scale = { 300.f, 300.f };
-        Engine->DrawQuad(0, 2, quadTransform);
+        Engine->DrawQuad(2, quadTransform);
 
-        Engine->DrawQuadsOffsetScale(0, quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
+        Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
-        auto stop = std::chrono::high_resolution_clock::now();
-        deltaTime = std::max((f32)(std::chrono::duration_cast<std::chrono::milliseconds>(stop - start)).count(), 0.5f);
-        fps = 1.f / (deltaTime / 1000.f);
-        std::cout << "FPS: " << fps << std::endl;
+        std::cout << "FPS: " << Engine->FPS() << std::endl;
     }
 
     Engine->Cleanup();
@@ -92,7 +85,7 @@ int main(int argc, char** argv)
     diamond* Engine = new diamond();
     
     int particleCount = 100000;
-    Engine->Initialize(800, 600, "Diamond Particle Simulation Example");
+    Engine->Initialize(800, 600, "Diamond Particle Simulation Example", "../../images/default-texture.png");
 
     std::array<diamond_compute_buffer_info, 2> cpBuffers {
         diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true, true),
@@ -153,8 +146,8 @@ int main(int argc, char** argv)
                     velocities[i] *= -1;
             }
             diamond_transform trans;
-            Engine->BindVertices(0, computeData.data(), computeData.size());
-            Engine->Draw(0, computeData.size(), -1, trans);
+            Engine->BindVertices(computeData.data(), computeData.size());
+            Engine->Draw(computeData.size(), -1, trans);
         }
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
@@ -172,7 +165,7 @@ int main3(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
-    Engine->Initialize(800, 600, "Diamond Mandelbrot Set Example");
+    Engine->Initialize(800, 600, "Diamond Mandelbrot Set Example", "../../images/default-texture.png");
 
     int imageSize = 2048;
     std::array<diamond_compute_image_info, 1> cpImages {
@@ -198,6 +191,8 @@ int main3(int argc, char** argv)
 
     Engine->CreateComputePipeline(cpCreateInfo);
 
+    int textureIndex = Engine->GetComputeTextureIndex(0, 0);
+
     diamond_test_compute_constants constants = {};
     constants.offsetX = 1.5f;
     constants.offsetY = 0.0008f;
@@ -215,7 +210,7 @@ int main3(int argc, char** argv)
         quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = 0.f;
         quadTransform.scale = { 3000.f ,3000.f };
-        Engine->DrawQuad(0, 1, quadTransform);
+        Engine->DrawQuad(1, quadTransform);
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
         //std::cout << "FPS: " << Engine->FPS() << std::endl;

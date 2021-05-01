@@ -124,9 +124,9 @@ struct diamond_compute_buffer_info
     }
 
     const char* identifier = ""; // used when creating new pipelines which should access existing buffers
-    int size = 0;
+    int size = 0; // size in bytes of the buffer
     bool bindVertexBuffer = false; // enable if this buffer should be compatible as a vertex buffer
-    bool staging = false; // enable if this buffer should be copied to a strictly device local buffer after every map (note: when enabled, each buffer will take up two indexes)
+    bool staging = false; // enable if this buffer should be split into two separate buffers, one for the CPU and one for the GPU. This is helpful because the GPU optimized buffer is extremely fast and leaving this enabled is the preferred method for interfacing with data in the compute shader
 };
 
 struct diamond_compute_image_info
@@ -156,9 +156,9 @@ struct diamond_compute_image_info
     }
 
     const char* identifier = ""; // used when creating new pipelines which should access existing images
-    int width = 0;
-    int height = 0;
-    int precision = 8; // 8 16 32 64
+    int width = 0; // width of the image
+    int height = 0; // height of the image
+    int precision = 8; // 8 16 32 64 precision of each color value
 };
 
 // References
@@ -169,31 +169,37 @@ struct diamond_compute_image_info
 
 struct diamond_compute_pipeline_create_info
 {
-    diamond_compute_buffer_info* bufferInfoList = nullptr;
-    int bufferCount = 0;
-    diamond_compute_image_info* imageInfoList = nullptr;
-    int imageCount = 0;
-    const char* computeShaderPath = "";
+    diamond_compute_buffer_info* bufferInfoList = nullptr; // can be temporary; these values get copied internally
+    int bufferCount = 0; // amount of elements in bufferInfoList
+    diamond_compute_image_info* imageInfoList = nullptr; // can be temporary; these values get copied internally
+    int imageCount = 0; // amount of elements in imageInfoList
+    const char* computeShaderPath = ""; // path to the compiled .spv shader (See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation)
     const char* entryFunctionName = "main";
-    uint32_t groupCountX = 1;
+    uint32_t groupCountX = 1; // see https://vkguide.dev/docs/gpudriven/compute_shaders/
     uint32_t groupCountY = 1;
     uint32_t groupCountZ = 1;
-    bool usePushConstants = false;
+    bool usePushConstants = false; // see http://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/PushConstants.1pp.pdf
     int pushConstantsDataSize = 0;
 };
 
 struct diamond_graphics_pipeline_create_info
 {
-    const char* vertexShaderPath = "";
+    const char* vertexShaderPath = ""; // path to the compiled .spv shader (See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation)
     const char* fragmentShaderPath = "";
+
+    // these fields only need to be changed when using custom vertices
+    // this feature is still pretty rudimentary, so 
     int vertexSize = sizeof(diamond_vertex);
     std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
     VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
     VkPrimitiveTopology vertexTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; // see https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPrimitiveTopology.html
+
     bool useCustomPushConstants = false;
     int pushConstantsDataSize = 0;
-    uint32_t maxVertexCount;
-    uint32_t maxIndexCount;
+
+    // max amounts that can be bound to each pipeline
+    uint32_t maxVertexCount = 1000;
+    uint32_t maxIndexCount = 2000;
 };
 
 // Internal use

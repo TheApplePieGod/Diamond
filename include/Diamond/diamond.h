@@ -18,19 +18,15 @@ public:
     * 
     * @param width Desired starting width of the window
     * @param height Desired starting height of the window
-    * @param maxVertexCount Max amount of vertices rendered per frame
-    * @param maxIndexCount Max amount of indices rendered per frame
     * @param windowName Desired name of the window and also name of the vulkan application
-    * @param vertShaderPath Path to the initial compiled .spv vertex shader
-    * @param fragShaderPath Path to the initial compiled .spv fragment shader
-    * @note See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation
+    * @param defaultTexturePath The path to the default texture the engine will fallback to in the case of a missing texture
     */
-    void Initialize(int width, int height, const char* windowName);
+    void Initialize(int width, int height, const char* windowName, const char* defaultTexturePath);
 
     /*
     * Called at the start of every frame in the game loop
     * 
-    * Internal updates, binds initial pipeline values, and resets command buffers
+    * Internal updates, resets command buffers, and starts a new ImGui frame if applicable
     * 
     * @param cameraMode Specify whether to render the scene using a predefined perspective or orthographic view
     * @param cameraDimensions Dimensions to use for the projection if camera mode is orthographic frame independent
@@ -42,7 +38,7 @@ public:
     /*
     * Called at the end of every frame in the game loop
     * 
-    * Does some cleanup and also handles presenting to the swap chain image buffer
+    * Does some cleanup and also handles presenting to the swap chain image buffer. Also draws ImGui data if applicable
     * 
     * @param clearColor The color to clear the screen with when drawing a new frame
     */
@@ -76,45 +72,177 @@ public:
     /*
     * Apply changes made to the registered texture array
     * 
-    * Call this after all registrations have been made. It can be called multiple times, but the less
-    * the better
+    * Call this after all registrations have been made. It can be called multiple times, but every call recreates many parts of
+    * the vulkan pipeline and will likely cause performance issues
+    * 
     * @see RegisterTexture()
     */
     void SyncTextureUpdates();
     
-    void RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination);
-    void MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source);
-
-    // used to sync with device memory
-    void UploadComputeData(int pipelineIndex, int bufferIndex); // must be called in between begin and end frame
-    void DownloadComputeData(int pipelineIndex, int bufferIndex); // must be called in between begin and end frame
-
-    int CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
-    void DeleteComputePipeline(int pipelineIndex); // should be run on the main thread
-    int ComputePipelineFirstTextureIndex(int pipelineIndex);
-    void RunComputeShader(int pipelineIndex, void* pushConsantsData = nullptr); // must be called in between begin and end frame
-    glm::vec3 GetDeviceMaxWorkgroupCount();
-
+    /*
+    * Create a pipeline which specifies the shaders and information layouts to use during the following draw calls
+    *
+    * The pipeline to be used must be set explicitly every frame before any draw calls are made. The pipeline can
+    * be switched any number of times during a frame
+    * 
+    * @param createInfo The struct containing creation information about the pipeline
+    * @returns The index of the pipeline for future referencing
+    * @see diamond_graphics_pipeline_create_info
+    */
     int CreateGraphicsPipeline(diamond_graphics_pipeline_create_info createInfo);
-    void SetGraphicsPipeline(int pipelineIndex); // must be set every frame
-    void DeleteGraphicsPipeline(int pipelineIndex); // should be run on the main thread
 
     /*
-    * Set the vertices that will be drawn in the next draw call
+    * Delete a graphics pipeline via its index
+    *
+    * The id of the old pipeline never gets reused
+    * 
+    * @param pipelineIndex The index of the graphics pipeline
+    * @see CreateGraphicsPipeline()
+    */
+    void DeleteGraphicsPipeline(int pipelineIndex);
+
+    /*
+    * Create a pipeline which enables the use of powerful vulkan compute shaders
+    *
+    * Each pipeline must be run explicitly. See the creation info struct for more details on
+    * what can be supplied to and accessed from the shader
+    * 
+    * @param createInfo The struct containing creation information about the pipeline
+    * @returns The index of the pipeline for future referencing
+    * @see diamond_compute_pipeline_create_info RunComputeShader()
+    * @see https://vkguide.dev/docs/gpudriven/compute_shaders/
+    */
+    int CreateComputePipeline(diamond_compute_pipeline_create_info createInfo);
+
+    /*
+    * Delete a compute pipeline via its index
+    *
+    * The id of the old pipeline never gets reused nor does the associated image texture indexes
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @see CreateComputePipeline()
+    */
+    void DeleteComputePipeline(int pipelineIndex);
+
+    /*
+    * Map data to a compute pipeline buffer to be accessed in the shader
+    *
+    * Can be called any time. When a buffer is flagged as staging, the data must also be uploaded after it is mapped in order
+    * for the changes to propogate to the GPU memory
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param bufferIndex The index local to this specific pipeline of the destination buffer
+    * @param dataOffset The offset in bytes in the source buffer to start copying from
+    * @param dataSize The size in bytes of the copy
+    * @param source A pointer to the source data to copy from 
+    * @see UploadComputeData()
+    */
+    void MapComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* source);
+
+    /*
+    * Retrieve data from a compute pipeline buffer to be accessed locally on the CPU
+    *
+    * Can be called any time. When a buffer is flagged as staging, the data must downloaded first before it is retrieved in order
+    * to obtain accurate data
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param bufferIndex The index local to this specific pipeline of the source buffer
+    * @param dataOffset The offset in bytes in the source buffer to start copying from
+    * @param dataSize The size in bytes of the copy
+    * @param destination A pointer to the destination memory to copy to 
+    * @see DownloadComputeData()
+    */
+    void RetrieveComputeData(int pipelineIndex, int bufferIndex, int dataOffset, int dataSize, void* destination);
+
+    /*
+    * Transfer data stored on a local buffer marked as staging onto the GPU
+    *
+    * Must be called between begin and end frame. The operation completes at the end of the frame, so mapping can occur at any point before then.
+    * This also means that the new data will not be accessable on the shader until the next frame
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param bufferIndex The index local to this specific pipeline of the buffer to upload
+    * @see MapComputeData()
+    */
+    void UploadComputeData(int pipelineIndex, int bufferIndex);
+
+    /*
+    * Transfer buffer data stored on the GPU to a local staging buffer 
+    *
+    * Must be called between begin and end frame. The operation completes at the end of the frame, which means that retrieval
+    * must occur during the next frame in order to retrieve accurate data
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param bufferIndex The index local to this specific pipeline of the buffer to download
+    * @see RetrieveComputeData()
+    */
+    void DownloadComputeData(int pipelineIndex, int bufferIndex);
+
+    /*
+    * Run the specified compute shader
+    *
+    * Will run using whatever data is currently bound and will not move on until it is completed
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param pushConstantsData A pointer to the data which should be bound to the push constants for this execution (if usePushConstants is set)
+    */
+    void RunComputeShader(int pipelineIndex, void* pushConsantsData = nullptr);
+
+    /*
+    * Set the graphics pipeline to be used during the following draw calls
+    *
+    * Can be called multiple times per frame. Switch to the desired pipeline before any draw calls are made or vertices/indices are bound, as
+    * they rely on the currently bound graphics pipeline. The bound pipeline gets reset every frame; thus, this function must be recalled
+    * 
+    * @param pipelineIndex The index of the graphics pipeline to set
+    */
+    void SetGraphicsPipeline(int pipelineIndex);
+
+    /*
+    * Get the texture index of the specified image bound to the specified compute pipeline
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param imageIndex The index local to this specific pipeline of the image to get the associated texture index
+    * @returns 
+    */
+    int GetComputeTextureIndex(int pipelineIndex, int imageIndex);
+
+    /*
+    * Get the device max supported number of workgroup dispatches for each dimension
+    * 
+    * These values are typically extremely large, and they represent the maximum number which can be passed into the
+    * compute pipeline's groupCount fields
+    * 
+    * @returns A vec3 containing the max size for each dimension
+    * @see https://www.khronos.org/opengl/wiki/Compute_Shader#Inputs
+    */
+    glm::vec3 GetDeviceMaxWorkgroupCount();
+
+    /*
+    * Get the device max supported number of workgroups for each dimension
+    * 
+    * These values reference the workgroup sizes which are defined in the compute shader file itself
+    * 
+    * @returns A vec3 containing the max size for each dimension
+    * @see https://www.khronos.org/opengl/wiki/Compute_Shader#Inputs
+    */
+    glm::vec3 GetDeviceMaxWorkgroupSize();
+
+    /*
+    * Set the vertices that will be drawn in the next draw call in the currently bound pipeline
     * 
     * This can be called any number of times during a frame. Call it right before a draw call is made
     * and it can be called again immediately after for a different set of vertices if necessary.
     * 
-    * @param vertices An array of diamond_vertex vertices
+    * @param vertices An array of vertex data which match the layout defined in the specified pipeline
     * @param vertexCount The amount of vertices passed in the array
-    * @note Implementation is limited to only use the diamond_vertex structure, but that will change in the future
-    * @see Draw() DrawIndexed() diamond_vertex
+    * @see Draw() DrawIndexed()
     */
-    void BindVertices(int pipelineIndex, const void* vertices, uint32_t vertexCount);
-    void BindVertices(int pipelineIndex, void* vertices, uint32_t vertexCount);
+    void BindVertices(const void* vertices, uint32_t vertexCount);
+    void BindVertices(void* vertices, uint32_t vertexCount);
 
     /*
-    * Set the indices that will be used in the next DrawIndexed() call
+    * Set the indices that will be used in the next DrawIndexed() call in the currently bound pipeline
     * 
     * This can be called any number of times during a frame. Call it right before a DrawIndexed() call is made
     * and it can be called again immediately after for a different set of indices if necessary.
@@ -122,46 +250,63 @@ public:
     * @param indices An array of vertex indices
     * @param index The amount of indices passed in the array
     * @note See https://www.proofof.blog/2018/09/24/vertex-and-index-buffer.html for information on indexed drawing
-    * @see Draw() DrawIndexed() diamond_vertex
+    * @see Draw() DrawIndexed()
     */
-    void BindIndices(int pipelineIndex, const uint16_t* indices, uint32_t indexCount);
-    void BindIndices(int pipelineIndex, uint16_t* indices, uint32_t indexCount);
+    void BindIndices(const uint16_t* indices, uint32_t indexCount);
+    void BindIndices(uint16_t* indices, uint32_t indexCount);
 
     /*
-    * Draw the currently bound vertices to the screen
+    * Draw the currently bound vertices to the screen using the currently bound pipeline
     * 
     * This can be called any number of times during a frame. BindVertices() must have been called prior to this
-    * call. The api expects vertices to be given in triangle list format, meaning every 3 vertices corresponds
-    * to one separate triangle. Diamond expects a clockwise winding order
+    * call. The vertices must be provided in the same format defined in the pipeline (e.g. VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST must
+    * be provided as sets of three vertices defining a single triangle). A clockwise winding order is also required
+    * 
+    * The second override is functionally identical to the first, except it assumes the pipeline has useCustomPushConstants set to false
+    * because it uses the default push constants struct to provide the data passed in through the parameters
     * 
     * @param vertexCount The amount of vertices that should be drawn (usually equivalent to the amount passed to BindVertices())
-    * @param textureIndex The index of the registered texture that will override vertices and be drawn on all triangles. Pass -1 to ignore the override
-    * @param objectTransform The world space transform of the object that is being drawn
+    * @param pushConstantsData A pointer to the data which should be pushed for this object, which means useCustomPushConstants must be true and the layout must match the one specified in the pipeline
+    * @param textureIndex The index of the desired texture for this object that will be passed through to the shader
+    * @param objectTransform The world space transform of the object that is being drawn that will be passed through to the shader
     * @note See https://www.khronos.org/opengl/wiki/Face_Culling for information on winding order
-    * @note Only use the second Draw() when using custom push constant data
-    * @see BindVertices() RegisterTexture() diamond_vertex diamond_transform
+    * @see BindVertices() RegisterTexture() diamond_vertex diamond_transform diamond_object_data
     */
-    void Draw(int pipelineIndex, uint32_t vertexCount, int textureIndex, diamond_transform objectTransform);
-    void Draw(int pipelineIndex, uint32_t vertexCount, int textureIndex, void* pushConstantsData);
+    void Draw(uint32_t vertexCount, void* pushConstantsData);
+    void Draw(uint32_t vertexCount, int textureIndex, diamond_transform objectTransform);
 
     /*
-    * Draw the currently bound vertices and indices to the screen
+    * Draw the currently bound vertices and indices to the screen using the currently bound pipeline
     * 
     * This can be called any number of times during a frame. BindVertices() and BindIndices() must have been called prior to this
-    * call. With DrawIndexed(), any amount of vertices can be provided in any order, but indices must still make up sets of 3 because 
-    * Diamond expects a list of triangles with clockwise winding order
+    * call. The vertices must be provided in the same format defined in the pipeline (e.g. VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST must
+    * be provided as sets of three vertices defining a single triangle). A clockwise winding order is also required
+    * 
+    * The second override is functionally identical to the first, except it assumes the pipeline has useCustomPushConstants set to false
+    * because it uses the default push constants struct to provide the data passed in through the parameters
     * 
     * @param indexCount The amount of indices that should be drawn (usually equivalent to the amount passed to BindIndices())
     * @param vertexCount The amount of vertices that should be drawn (usually equivalent to the amount passed to BindVertices())
-    * @param textureIndex The index of the registered texture that will override vertices and be drawn on all triangles. Pass -1 to ignore the override
-    * @param objectTransform The world space transform of the object that is being drawn
+    * @param pushConstantsData A pointer to the data which should be pushed for this object, which means useCustomPushConstants must be true and the layout must match the one specified in the pipeline
+    * @param textureIndex The index of the desired texture for this object that will be passed through to the shader
+    * @param objectTransform The world space transform of the object that is being drawn that will be passed through to the shader
     * @note See https://www.khronos.org/opengl/wiki/Face_Culling for information on winding order
-    * @note Only use the second DrawIndexed() when using custom push constant data
-    * @see BindVertices() BindIndices() RegisterTexture() diamond_vertex diamond_transform
+    * @see BindIndices() BindVertices() RegisterTexture() diamond_vertex diamond_transform diamond_object_data
     */
-    void DrawIndexed(int pipelineIndex, uint32_t indexCount, uint32_t vertexCount, int textureIndex, diamond_transform objectTransform);
-    void DrawIndexed(int pipelineIndex, uint32_t indexCount, uint32_t vertexCount, int textureIndex, void* pushConstantsData);
+    void DrawIndexed(uint32_t indexCount, uint32_t vertexCount, void* pushConstantsData);
+    void DrawIndexed(uint32_t indexCount, uint32_t vertexCount, int textureIndex, diamond_transform objectTransform);
 
+    /*
+    * Use a compute shader buffer as a vertex buffer and draw it to the screen using the currently bound graphics pipeline
+    *
+    * This can be called any number of times during a frame. The specified buffer must be created with bindVertexBuffer set to true. The data
+    * in the buffer must match the vertex layout defined in the graphics pipeline. Because this function pulls the vertex data right from the GPU, regardless
+    * of if the buffer is marked as staging, no data copying or uploading/downloading has to happen.
+    * 
+    * @param pipelineIndex The index of the compute pipeline
+    * @param bufferIndex The index local to this specific pipeline of the buffer to use
+    * @param vertexCount The amount of vertices to be drawn from the buffer 
+    */
     void DrawFromCompute(int pipelineIndex, int bufferIndex, uint32_t vertexCount); // This will use the currently bound graphics pipeline, but draw vertices from a compute shader buffer
 
     /*
@@ -176,7 +321,7 @@ public:
     * @see RegisterTexture() diamond_transform
     * @warning This is is not compatible when custom vertex structure or push constants are being used
     */
-    void DrawQuad(int pipelineIndex, int textureIndex, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
+    void DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
 
     /*
     * Draw many quads to the screen each with a given transform
@@ -195,7 +340,7 @@ public:
     * @see DrawQuadsOffsetScale() RegisterTexture() diamond_transform
     * @warning This is is not compatible when custom vertex structure or push constants are being used
     */
-    void DrawQuadsTransform(int pipelineIndex, int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
+    void DrawQuadsTransform(int* textureIndexes, diamond_transform* quadTransforms, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
     /*
     * Draw many quads to the screen each with a given offset and scale
@@ -214,7 +359,7 @@ public:
     * @see DrawQuadsTransform() RegisterTexture() diamond_transform
     * @warning This is is not compatible when custom vertex structure or push constants are being used
     */
-    void DrawQuadsOffsetScale(int pipelineIndex, int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
+    void DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales, int quadCount, diamond_transform originTransform = diamond_transform(), glm::vec4* colors = nullptr, glm::vec4* texCoords = nullptr);
 
     /*
     * Generate a basic 2D view matrix given the position of the camera
@@ -248,21 +393,32 @@ public:
     /*
     * Get the current aspect ratio of the engine window
     * 
-    * @returns The aspect ratio
+    * @returns The aspect ratio x/y
     */
     float GetAspectRatio();
 
     /*
     * Sets the glfw window to windowed or fullscreen exclusive mode depending on the input parameter
     * 
-    * @param fullscreen true if the window should be fullscreen
+    * @param fullscreen True if the window should be fullscreen
     */
     void SetFullscreen(bool fullscreen);
 
+    /*
+    * Sets the glfw window to the specified size
+    * 
+    * @param size The desired size in pixels
+    */
     void SetWindowSize(glm::vec2 size);
 
+    /*
+    * @returns The time elapsed during the last frame
+    */
     inline double FrameDelta() { return frameDelta; };
 
+    /*
+    * @returns The current FPS based off of the current FrameDelta
+    */
     inline double FPS() { return fps; };
 
     /*
@@ -286,6 +442,14 @@ public:
     */
     inline std::tuple<VkInstance, VkPhysicalDevice, VkDevice> VulkanComponents() { return std::make_tuple(instance, physicalDevice, logicalDevice); };
 
+    /*
+    * Get the set of vulkan components used during rendering
+    * 
+    * This exposes two vulkan components for outside use: the main render pass, the command buffer used during the main render pass
+    * 
+    * @returns A tuple of the two components (VkRenderPass, VkCommandBuffer)
+    * @warning Utilizing these handles may result in undefined behavior
+    */
     inline std::tuple<VkRenderPass, VkCommandBuffer> VulkanRenderComponents() { return std::make_tuple(renderPass, renderPassBuffer); };
 
     /*
@@ -299,7 +463,20 @@ public:
     */
     inline diamond_swap_chain_info VulkanSwapChain() { return swapChain; };
 
+    /*
+    * Start a single-use command buffer for completing general vulkan tasks
+    *
+    * @returns The handle to the created command buffer
+    * @warning Utilizing these functions may result in undefined behavior
+    */
     VkCommandBuffer BeginSingleTimeCommands();
+
+    /*
+    * Submit & cleanup a single-use command buffer
+    *
+    * @param commandBuffer The handle of the command buffer returned by BeginSingleTimeCommands()
+    * @warning Utilizing these functions may result in undefined behavior
+    */
     void EndSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 private:
