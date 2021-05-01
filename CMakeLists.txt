@@ -1,10 +1,10 @@
-## Read through this file for documented build options and mandatory actions 
+## Read through this file for documented build options and mandatory actions (steps 1-3)
 
 cmake_minimum_required(VERSION 3.19)
 
 project(
     Diamond
-    VERSION 0.1
+    VERSION 1.0
     DESCRIPTION "A vulkan based 2D rendering engine"
 )
 
@@ -14,12 +14,14 @@ include_directories("src/lib/stb")
 include_directories("src/lib/imgui")
 include_directories("include")
 
+## 1. Build options
 option(DEBUG "Build Diamond in debug mode" ON)
 option(IMGUI_INTEGRATION "Build diamond with ImGui integration" ON)
 
-## Install the vulkan SDK from https://vulkan.lunarg.com/sdk/home and replace the two paths below
-include_directories("C:/VulkanSDK/1.2.162.1/Include")
-find_library(vulkan-1 vulkan-1 "C:/VulkanSDK/1.2.162.1/Lib")
+## 2. Install the vulkan SDK from https://vulkan.lunarg.com/sdk/home and replace the base path below
+set(VulkanBasePath "C:/VulkanSDK/1.2.162.1")
+include_directories("${VulkanBasePath}/Include")
+find_library(vulkan-1 vulkan-1 "${VulkanBasePath}/Lib")
 
 if (DEBUG)
     add_compile_definitions(DIAMOND_DEBUG)
@@ -34,8 +36,9 @@ add_custom_command(
 
 file(GLOB SOURCES "src/*.cpp")
 
-## To compile examples, uncomment add_executable and comment out add_library and rebuild
-## add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
+## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
+## otherwise, change nothing
+# add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
 add_library(Diamond ${SOURCES})
 
 if (IMGUI_INTEGRATION)
@@ -59,6 +62,20 @@ install(
     TARGETS Diamond
     EXPORT DiamondTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+install(
+    DIRECTORY "include/Diamond"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/include
+    FILES_MATCHING
+    PATTERN "*.h"
+)
+install(
+    DIRECTORY "src/lib"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/include
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+    PATTERN "*.inl"
 )
 install(
     EXPORT DiamondTargets
