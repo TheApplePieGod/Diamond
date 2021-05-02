@@ -1,7 +1,7 @@
 #include <Diamond/diamond.h>
 #include <iostream>
 #include "../util/defs.h"
-#include <gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
 
 // basic example
