@@ -509,14 +509,13 @@ void diamond::UploadComputeData(int pipelineIndex, int bufferIndex)
         
         vkCmdCopyBuffer(computeBuffer, computePipelines[pipelineIndex].buffers[bufferIndex], computePipelines[pipelineIndex].deviceBuffers[bufferIndex], 1, &copy);
 
-        VkBufferMemoryBarrier ub_barrier = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            .buffer = computePipelines[pipelineIndex].deviceBuffers[bufferIndex],
-            .offset = 0,
-            .size = copy.size,
-        };
+        VkBufferMemoryBarrier ub_barrier = {};
+        ub_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        ub_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        ub_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        ub_barrier.buffer = computePipelines[pipelineIndex].deviceBuffers[bufferIndex],
+        ub_barrier.offset = 0,
+        ub_barrier.size = copy.size,
 
         vkCmdPipelineBarrier (
             computeBuffer,
