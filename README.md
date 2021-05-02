@@ -1,3 +1,5 @@
+![Logo](logo.png)
+
 # Diamond
 
 A Vulkan based cross platform 2D rendering engine. While Diamond is an 'engine', it is not a standalone application and must be rooted in another application.
@@ -9,7 +11,7 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 ## Caveats?
 
 - Diamond is currently work in progress and there is a lot which is subject to change or not implemented yet
-- Diamond is not completely library dependent
+- Diamond is not completely library independent
 
 # Getting Started
 
@@ -32,7 +34,7 @@ Clone the repo
 $ git clone https://github.com/TheApplePieGod/Diamond
 ```
 
-Open the root directory CMakeLists.txt and follow the instructions provided
+Open the root directory CMakeLists.txt and follow the instructions provided in the file
 
 Run the following commands in the root directory of the repo
 
@@ -63,7 +65,7 @@ include_directories("${VulkanBasePath}/Include")
 target_link_libraries(YourProjectTarget Diamond::Diamond)
 ```
 
-All of the libraries that are included with Diamond are referenced in the following ways (the last two are already included in structures.h):
+All of the libraries that are included with Diamond are referenced in the following ways (the last two are already included with diamond.h):
 ```
 #include <Diamond/diamond.h>
 #include <imgui/imgui.h>
@@ -73,11 +75,11 @@ All of the libraries that are included with Diamond are referenced in the follow
 
 ## Usage
 
-The main.cpp in the Diamond repository should give some good insight on basic setup and usage of the library. The two main header files (diamond.h and structures.h) contain extensive documentation on the api and usage of the library. Although the documentation goes fairly in depth, it is recommended to have a rudimentary understanding of CMake and how rendering APIs like Vulkan or DirectX function, as well as a strong grasp on C++.
+The main.cpp in the Diamond repository should give some good insight on basic setup and usage of the library. The two main header files (diamond.h and structures.h) contain extensive documentation on the api and usage of Diamond. Although the documentation goes fairly in depth, it is recommended to have a rudimentary understanding of how rendering APIs like Vulkan or DirectX function, as well as a strong grasp on C++.
 
 ---
 
-To use the library, include 'Diamond.h' located in the include directory and initialize a new engine instance
+To use the library, include 'diamond.h' and initialize a new engine instance
 
 ```cpp
 diamond* Engine = new diamond();
@@ -142,5 +144,5 @@ int main(int argc, char** argv)
 
 ## Notes
 
-- Diamond uses the cross platform window manager library [GLFW](https://www.glfw.org/) behind the scenes, so the engine exposes the GLFW data in order to be used for input and other window related functionality.
+- Diamond uses the cross platform window manager library [GLFW](https://www.glfw.org/) behind the scenes, so the engine exposes the GLFW window handle in order to be used for input and other window related functionality.
 - Because Diamond is built on Vulkan, Vulkan expects .spv compiled shaders. The Diamond repository includes a CompileShaders.bat which uses [glslc](https://github.com/google/shaderc/tree/main/glslc) to compile and is called via CMake at build time, so it is a good script to reuse or use as a basis.
