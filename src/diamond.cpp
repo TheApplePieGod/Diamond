@@ -66,7 +66,7 @@ void diamond::Initialize(int width, int height, const char* windowName, const ch
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
         // check for compatability
-        for (int i = 0; i < glfwExtensionCount; i++)
+        for (u32 i = 0; i < glfwExtensionCount; i++)
         {
             Assert(std::find_if(supportedExtensions.begin(), supportedExtensions.end(), [&glfwExtensions, &i](const VkExtensionProperties& arg) { return strcmp(arg.extensionName, glfwExtensions[i]); }) != supportedExtensions.end());
         }
@@ -443,7 +443,7 @@ int diamond::CreateComputePipeline(diamond_compute_pipeline_create_info createIn
     }
 
     computePipelines.push_back(pipeline);
-    return computePipelines.size() - 1;
+    return static_cast<int>(computePipelines.size() - 1);
 }
 
 void diamond::DeleteComputePipeline(int pipelineIndex)
@@ -471,7 +471,7 @@ int diamond::CreateGraphicsPipeline(diamond_graphics_pipeline_create_info create
     }
 
     graphicsPipelines.push_back(pipeline);
-    return graphicsPipelines.size() - 1;
+    return static_cast<int>(graphicsPipelines.size() - 1);
 }
 
 void diamond::DeleteGraphicsPipeline(int pipelineIndex)
@@ -945,7 +945,7 @@ VkImageView diamond::CreateTextureImage(void* data, VkImage& image, VkDeviceMemo
     VkDeviceMemory stagingBufferMemory;
     CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
-    MapMemory(data, sizeof(stbi_uc), imageSize, stagingBufferMemory, 0);
+    MapMemory(data, sizeof(stbi_uc), static_cast<u32>(imageSize), stagingBufferMemory, 0);
 
     CreateImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, imageMemory);
 
@@ -1088,7 +1088,7 @@ void diamond::CreateComputeDescriptorPool(diamond_compute_pipeline& pipeline, in
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = poolSizes.size();
+    poolInfo.poolSizeCount = static_cast<u32>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 1;
     poolInfo.flags = 0;
@@ -1204,7 +1204,7 @@ void diamond::CreateComputeDescriptorSets(diamond_compute_pipeline& pipeline, in
         descriptorWrites[i].pImageInfo = &imageDescriptorList[i - bufferCount];
     }
 
-    vkUpdateDescriptorSets(logicalDevice, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+    vkUpdateDescriptorSets(logicalDevice, static_cast<u32>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
 #if DIAMOND_IMGUI
@@ -1234,7 +1234,7 @@ ImGui_ImplVulkan_InitInfo diamond::ImGuiInitInfo() {
     info.DescriptorPool = descriptorPool;
     info.Allocator = NULL;
     info.MinImageCount = 2;
-    info.ImageCount = swapChain.swapChainImages.size();
+    info.ImageCount = static_cast<u32>(swapChain.swapChainImages.size());
     info.CheckVkResultFn = NULL;
     info.MSAASamples = msaaSamples;
     return info;
@@ -1496,7 +1496,7 @@ void diamond::RecreateCompute(diamond_compute_pipeline& pipeline, diamond_comput
             newTex.imageView = CreateImageView(newTex.image, format, 1);
             newTex.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
             newTex.id = static_cast<u32>(textureArray.size());
-            pipeline.textureIndexes.push_back(textureArray.size());
+            pipeline.textureIndexes.push_back(static_cast<int>(textureArray.size()));
             textureArray.push_back(newTex);
         }
     }
