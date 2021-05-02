@@ -27,23 +27,21 @@ For convenience and best stability, Diamond includes its dependencies with the r
 - [stb_image](https://github.com/nothings/stb) (headers only)
 
 ## Building
-Install CMake
-
-Clone the repo
+1. Clone the repo
 ```
 $ git clone https://github.com/TheApplePieGod/Diamond
 ```
 
-Open the root directory CMakeLists.txt and follow the instructions provided in the file
+2. Open the root directory CMakeLists.txt and follow the instructions provided in the file
 
-Run the following commands in the root directory of the repo
+3. Run the following commands in the root directory of the repo
 
 ```
 $ mkdir build
 $ cd build
 ```
 
-Now run these commands in either 'Debug' or 'Release' depending on your use case
+4. Now run these commands in either 'Debug' or 'Release' depending on your use case
 
 ```
 $ cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -51,7 +49,7 @@ $ cmake --build . --config Release
 $ cmake --install . --config Release
 ```
 
-This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
+5. This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
 
 To integrate with another CMake project, include the following lines in your project:
 ```
