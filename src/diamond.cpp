@@ -1881,7 +1881,7 @@ void diamond::CreateComputeDescriptorSetLayout(diamond_compute_pipeline& pipelin
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = bindings.size();
+    layoutInfo.bindingCount = static_cast<u32>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
     VkResult result = vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &pipeline.descriptorSetLayout);
