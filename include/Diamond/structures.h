@@ -6,9 +6,9 @@
 #include <vector>
 #include <array>
 #include <optional>
-#include <vec2.hpp>
-#include <vec3.hpp>
-#include <mat4x4.hpp>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
 #include <chrono>
 
 enum diamond_camera_mode: uint16_t

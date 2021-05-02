@@ -2,8 +2,8 @@
 #include "structures.h"
 
 #if DIAMOND_IMGUI
-#include "imgui_impl_vulkan.h"
-#include "imgui_impl_glfw.h"
+#include "imgui/imgui_impl_vulkan.h"
+#include "imgui/imgui_impl_glfw.h"
 #endif
 
 // Main engine class

@@ -46,9 +46,30 @@ Now run these two commands in either 'Debug' or 'Release' depending on your use 
 ```
 $ cmake .. -DCMAKE_BUILD_TYPE=Release
 $ cmake --build . --config Release
+$ cmake --install . --config Release
 ```
 
-This build directory will now contain your built files in either the 'Debug' or 'Release' subdirectories
+This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
+
+To integrate with another CMake project, include the following lines in your project:
+```
+add_compile_definitions(DIAMOND_IMGUI) # This should be commented out if you built without ImGui integration
+set(VulkanBasePath "C:/VulkanSDK/1.2.162.1") # Replace with your vulkan base installation path
+find_package(Diamond REQUIRED)
+include_directories(${Diamond_DIR}/../../include)
+include_directories(${Diamond_DIR}/../../include/lib)
+include_directories(${Diamond_DIR}/../../include/lib/glfw/include)
+include_directories("${VulkanBasePath}/Include")
+target_link_libraries(YourProjectTarget Diamond::Diamond)
+```
+
+All of the libraries that are included with Diamond are referenced in the following ways (the last two are already included in structures.h):
+```
+#include <Diamond/diamond.h>
+#include <imgui/imgui.h>
+#include <glm/vec2.hpp>
+#include <GLFW/glfw3.h>
+```
 
 ## Usage
 

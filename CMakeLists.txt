@@ -8,10 +8,8 @@ project(
     DESCRIPTION "A vulkan based 2D rendering engine"
 )
 
-include_directories("src/lib/glfw-3.3.2.bin.WIN64/include")
-include_directories("src/lib/glm")
-include_directories("src/lib/stb")
-include_directories("src/lib/imgui")
+include_directories("src/lib/glfw/include")
+include_directories("src/lib")
 include_directories("include")
 
 ## 1. Build options
@@ -52,7 +50,7 @@ if (IMGUI_INTEGRATION)
     )
 endif()
 
-find_library(glfw3 glfw3 "src/lib/glfw-3.3.2.bin.WIN64/lib-vc2019")
+find_library(glfw3 glfw3 "src/lib/glfw/lib-vc2019")
 target_link_libraries(Diamond "${glfw3}")
 target_link_libraries(Diamond "${vulkan-1}")
 

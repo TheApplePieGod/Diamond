@@ -33,7 +33,6 @@
 
 build
 .vscode
-src/lib
 *.sln
 .vs
 *.vcxproj*
