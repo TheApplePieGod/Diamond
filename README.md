@@ -43,7 +43,7 @@ $ mkdir build
 $ cd build
 ```
 
-Now run these two commands in either 'Debug' or 'Release' depending on your use case
+Now run these commands in either 'Debug' or 'Release' depending on your use case
 
 ```
 $ cmake .. -DCMAKE_BUILD_TYPE=Release

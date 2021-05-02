@@ -31,6 +31,7 @@
 *.out
 *.app
 
+!src/lib/glfw/lib-vc2019/*
 build
 .vscode
 *.sln
