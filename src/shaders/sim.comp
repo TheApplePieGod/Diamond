@@ -1,0 +1,28 @@
+#version 450
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct vertex
+{
+  vec2 pos;
+  vec2 padding;
+  vec4 color;
+};
+
+layout(set = 0, binding = 0, std430) buffer ParticleData
+{
+    vertex vertices[];
+} particleData;
+
+layout(set = 0, binding = 1, std430) buffer VelocityData
+{
+    vec2 velocities[];
+} velocityData;
+
+void main()
+{
+    particleData.vertices[gl_GlobalInvocationID.x].pos += velocityData.velocities[gl_GlobalInvocationID.x];
+
+    if (abs(particleData.vertices[gl_GlobalInvocationID.x].pos.x) > 2000 || abs(particleData.vertices[gl_GlobalInvocationID.x].pos.y) > 2000)
+        velocityData.velocities[gl_GlobalInvocationID.x] *= -1;
+}
