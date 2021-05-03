@@ -13,6 +13,22 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 - Diamond is currently work in progress and there is a lot which is subject to change or not implemented yet
 - Diamond is not completely library independent
 
+## License
+Copyright (C) 2021 [Evan Thompson](https://evanthompson.site/)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 # Getting Started
 
 ## Requirements
@@ -21,10 +37,13 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 
 ## Dependencies
 For convenience and best stability, Diamond includes its dependencies with the repo.
+
 - [glfw 3.3.2](https://www.glfw.org/)
 - [glm](https://github.com/g-truc/glm) (headers only)
 - [imgui](https://github.com/ocornut/imgui) (optional, compiled with engine)
 - [stb_image](https://github.com/nothings/stb) (headers only)
+
+All of these libraries in this repo include their respective licenses
 
 ## Building
 1. Clone the repo
