@@ -53,7 +53,7 @@ $ git clone https://github.com/TheApplePieGod/Diamond
 
 2. Open the root directory CMakeLists.txt and follow the instructions provided in the file
 
-3. Run the following commands in the root directory of the repo
+3. Open an elevated command prompt (if using the install command) and run the following commands in the root directory of the repo
 
 ```
 $ mkdir build
