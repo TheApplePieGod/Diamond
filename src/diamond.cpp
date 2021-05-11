@@ -782,8 +782,8 @@ glm::mat4 diamond::GenerateViewMatrix(glm::vec2 cameraPosition)
 glm::mat4 diamond::GenerateModelMatrix(diamond_transform objectTransform)
 {
     glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, 0.f));
-    model = model * glm::scale(glm::mat4(1.f), glm::vec3(objectTransform.scale, 1.f));
     model = model * glm::rotate(glm::mat4(1.f), glm::radians(objectTransform.rotation), glm::vec3(0.0f, 0.0f, -1.0f));
+    model = model * glm::scale(glm::mat4(1.f), glm::vec3(objectTransform.scale, 1.f));
     return model;
 }
 
