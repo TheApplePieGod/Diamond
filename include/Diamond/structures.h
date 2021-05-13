@@ -11,6 +11,50 @@
 #include <glm/mat4x4.hpp>
 #include <chrono>
 
+#define DIAMOND_VERTEX_BINDING_DESCRIPTION(struct) \
+    static VkVertexInputBindingDescription GetBindingDescription() \
+    { \
+        VkVertexInputBindingDescription bindingDescription{}; \
+        bindingDescription.binding = 0; \
+        bindingDescription.stride = sizeof(struct); \
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; \
+        return bindingDescription; \
+    }
+
+#define DIAMOND_VERTEX_ATTRIBUTE(struct, memberName, memberSize) \
+    attributeDescription = {}; \
+    attributeDescription.binding = 0; \
+    attributeDescription.location = static_cast<uint32_t>(attributeDescriptions.size()); \
+    attributeDescription.format = memberSize; \
+    attributeDescription.offset = offsetof(struct, memberName); \
+    attributeDescriptions.push_back(attributeDescription); \
+
+#define DIAMOND_VERTEX_ATTRIBUTE_DESCRIPTION(attributes) \
+    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions() \
+    { \
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions; \
+        VkVertexInputAttributeDescription attributeDescription{}; \
+        attributes \
+        return attributeDescriptions; \
+    }
+
+// common typenames when using the above macros to define a custom vertex layout
+struct diamond_vertex_attribute_sizes
+{
+    static const VkFormat float32 = VK_FORMAT_R32_SFLOAT;
+    static const VkFormat float32_2 = VK_FORMAT_R32G32_SFLOAT;
+    static const VkFormat float32_3 = VK_FORMAT_R32G32B32_SFLOAT;
+    static const VkFormat float32_4 = VK_FORMAT_R32G32B32A32_SFLOAT;
+    static const VkFormat float64 = VK_FORMAT_R64_SFLOAT;
+    static const VkFormat float64_2 = VK_FORMAT_R64G64_SFLOAT;
+    static const VkFormat float64_3 = VK_FORMAT_R64G64B64_SFLOAT;
+    static const VkFormat float64_4 = VK_FORMAT_R64G64B64A64_SFLOAT;
+    static const VkFormat signed_integer32 = VK_FORMAT_R32_SINT;
+    static const VkFormat unsigned_integer32 = VK_FORMAT_R32_UINT;
+    static const VkFormat signed_integer64 = VK_FORMAT_R64_SINT;
+    static const VkFormat unsigned_integer64 = VK_FORMAT_R64_UINT;
+};
+
 enum diamond_camera_mode: uint16_t
 {
     Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life
@@ -216,31 +260,12 @@ struct diamond_particle_vertex
     glm::vec2 padding;
     glm::vec4 color; // Color to be either rendered by itself or applied as a hue to the texture of the vertex
 
-    static VkVertexInputBindingDescription GetBindingDescription()
-    {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(diamond_particle_vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    DIAMOND_VERTEX_BINDING_DESCRIPTION(diamond_particle_vertex)
 
-        return bindingDescription;
-    }
-
-    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
-    {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(diamond_particle_vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(diamond_particle_vertex, color);
-
-        return attributeDescriptions;
-    }
+    DIAMOND_VERTEX_ATTRIBUTE_DESCRIPTION(
+        DIAMOND_VERTEX_ATTRIBUTE(diamond_particle_vertex, pos, diamond_vertex_attribute_sizes::float32_2)
+        DIAMOND_VERTEX_ATTRIBUTE(diamond_particle_vertex, color, diamond_vertex_attribute_sizes::float32_4)
+    )
 };
 
 struct diamond_test_compute_buffer
