@@ -18,6 +18,7 @@ enum diamond_camera_mode: uint16_t
     OrthographicViewportIndependent = 2 // same as 1 except objects scale with viewport size
 };
 
+// Basic data structure to represent a 2d transformation
 struct diamond_transform
 {
     glm::vec2 location = { 0.f, 0.f }; // World absolute position
@@ -44,13 +45,14 @@ struct diamond_texture
     uint32_t id;
 };
 
-// Internal use
+// Data provided to the shader via push constants when useCustomPushConstants is false
 struct diamond_object_data
 {
     glm::mat4 model;
     int textureIndex;
 };
 
+// The default vertex used unless a custom vertex structure is specified
 struct diamond_vertex
 {
     glm::vec2 pos; // Object space position of the vertex
@@ -58,7 +60,6 @@ struct diamond_vertex
     glm::vec2 texCoord; // Texture coordinates [0-1]
     int textureIndex; // Texture to be applied to this specific vertex. Useful when drawing sets of quads in one BindVertices() call. Set to -1 to only render vertex color
 
-    // Internal use
     static VkVertexInputBindingDescription GetBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription{};
@@ -69,7 +70,6 @@ struct diamond_vertex
         return bindingDescription;
     }
 
-    // Internal use
     static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
     {
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions(4);
@@ -97,6 +97,7 @@ struct diamond_vertex
     }
 };
 
+// Information structure for a compute pipeline buffer
 struct diamond_compute_buffer_info
 {
     diamond_compute_buffer_info()
@@ -129,6 +130,7 @@ struct diamond_compute_buffer_info
     bool staging = false; // enable if this buffer should be split into two separate buffers, one for the CPU and one for the GPU. This is helpful because the GPU optimized buffer is extremely fast and leaving this enabled is the preferred method for interfacing with data in the compute shader
 };
 
+// Information structure for a compute pipeline image
 struct diamond_compute_image_info
 {
     diamond_compute_image_info()
@@ -161,12 +163,7 @@ struct diamond_compute_image_info
     int precision = 8; // 8 16 32 64 precision of each color value
 };
 
-// References
-// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkAccessFlagBits.html
-// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPipelineStageFlagBits.html
-// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkMemoryBarrier.html
-// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdPipelineBarrier.html
-
+// Information structure for creating a compute pipeline
 struct diamond_compute_pipeline_create_info
 {
     diamond_compute_buffer_info* bufferInfoList = nullptr; // can be temporary; these values get copied internally
@@ -182,13 +179,16 @@ struct diamond_compute_pipeline_create_info
     int pushConstantsDataSize = 0;
 };
 
+// Information structure for creating a graphics pipeline
 struct diamond_graphics_pipeline_create_info
 {
     const char* vertexShaderPath = ""; // path to the compiled .spv shader (See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation)
     const char* fragmentShaderPath = "";
 
     // these fields only need to be changed when using custom vertices
-    // this feature is still pretty rudimentary, so 
+    // this feature is still pretty rudimentary, so there isn't much documentation on it and it is basically
+    // all bare bones Vulkan. Use diamond_vertex and diamond_particle_vertex as examples on how to set up
+    // the attribute and binding descriptions
     int vertexSize = sizeof(diamond_vertex);
     std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
     VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
@@ -202,20 +202,20 @@ struct diamond_graphics_pipeline_create_info
     uint32_t maxIndexCount = 2000;
 };
 
-// Internal use
+// Data always passed to the vertex shader
+// TODO: Custom frame buffers for each graphics pipeline. For now, use push constants for all custom data
 struct diamond_frame_buffer_object
 {
-    glm::mat4 viewProj;
+    glm::mat4 viewProj; // Camera's (projection * view) matrix (see http://www.codinglabs.net/article_world_view_projection_matrix.aspx)
 };
 
-// for the examples
+// EXAMPLE CODE STRUCTS
 struct diamond_particle_vertex
 {
     glm::vec2 pos; // Object space position of the vertex
     glm::vec2 padding;
     glm::vec4 color; // Color to be either rendered by itself or applied as a hue to the texture of the vertex
 
-    // Internal use
     static VkVertexInputBindingDescription GetBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription{};
@@ -226,7 +226,6 @@ struct diamond_particle_vertex
         return bindingDescription;
     }
 
-    // Internal use
     static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
     {
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
@@ -298,6 +297,7 @@ struct diamond_swap_chain_support_details
     std::vector<VkPresentModeKHR> presentModes;
 };
 
+// Internal use
 struct diamond_compute_pipeline
 {
     bool enabled = true;
@@ -314,6 +314,7 @@ struct diamond_compute_pipeline
     diamond_compute_pipeline_create_info pipelineInfo = {};
 };
 
+// Internal use
 struct diamond_graphics_pipeline
 {
     bool enabled = true;

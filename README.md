@@ -13,6 +13,22 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 - Diamond is currently work in progress and there is a lot which is subject to change or not implemented yet
 - Diamond is not completely library independent
 
+## License
+Copyright (C) 2021 [Evan Thompson](https://evanthompson.site/)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 # Getting Started
 
 ## Requirements
@@ -21,29 +37,30 @@ Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d appli
 
 ## Dependencies
 For convenience and best stability, Diamond includes its dependencies with the repo.
+
 - [glfw 3.3.2](https://www.glfw.org/)
 - [glm](https://github.com/g-truc/glm) (headers only)
 - [imgui](https://github.com/ocornut/imgui) (optional, compiled with engine)
 - [stb_image](https://github.com/nothings/stb) (headers only)
 
-## Building
-Install CMake
+All of these libraries in this repo include their respective licenses
 
-Clone the repo
+## Building
+1. Clone the repo
 ```
 $ git clone https://github.com/TheApplePieGod/Diamond
 ```
 
-Open the root directory CMakeLists.txt and follow the instructions provided in the file
+2. Open the root directory CMakeLists.txt and follow the instructions provided in the file
 
-Run the following commands in the root directory of the repo
+3. Open an elevated command prompt (if using the install command) and run the following commands in the root directory of the repo
 
 ```
 $ mkdir build
 $ cd build
 ```
 
-Now run these commands in either 'Debug' or 'Release' depending on your use case
+4. Now run these commands in either 'Debug' or 'Release' depending on your use case
 
 ```
 $ cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -51,7 +68,7 @@ $ cmake --build . --config Release
 $ cmake --install . --config Release
 ```
 
-This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
+5. This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
 
 To integrate with another CMake project, include the following lines in your project:
 ```

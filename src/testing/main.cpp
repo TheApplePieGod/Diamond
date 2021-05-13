@@ -1,7 +1,7 @@
 #include <Diamond/diamond.h>
 #include <iostream>
 #include "../util/defs.h"
-#include <gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
 
 // basic example
@@ -15,10 +15,10 @@ int main2(int argc, char** argv)
     std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true) };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
     std::vector<glm::vec2> computeData(particleCount);
-    cpCreateInfo.bufferCount = cpBuffers.size();
+    cpCreateInfo.bufferCount = static_cast<int>(cpBuffers.size());
     cpCreateInfo.bufferInfoList = cpBuffers.data();
     cpCreateInfo.computeShaderPath = "../shaders/basic.comp.spv";
-    cpCreateInfo.groupCountX = ceil(particleCount / 64.0);
+    cpCreateInfo.groupCountX = static_cast<u32>(ceil(particleCount / 64.0));
     Engine->CreateComputePipeline(cpCreateInfo);
     Engine->MapComputeData(0, 0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // map inital data
 
@@ -92,10 +92,10 @@ int main(int argc, char** argv)
         diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, false) // used as the buffer for velocities
     };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
-    cpCreateInfo.bufferCount = cpBuffers.size();
+    cpCreateInfo.bufferCount = static_cast<int>(cpBuffers.size());
     cpCreateInfo.bufferInfoList = cpBuffers.data();
     cpCreateInfo.computeShaderPath = "../shaders/sim.comp.spv";
-    cpCreateInfo.groupCountX = ceil(particleCount / 64.0);
+    cpCreateInfo.groupCountX = static_cast<u32>(ceil(particleCount / 64.0));
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "../shaders/sim.vert.spv";
@@ -135,7 +135,7 @@ int main(int argc, char** argv)
             if (frameCount == 0)
                 Engine->UploadComputeData(0, 0);
             Engine->RunComputeShader(0);
-            Engine->DrawFromCompute(0, 0, computeData.size()); // we still need to tell vulkan to draw the particles
+            Engine->DrawFromCompute(0, 0, static_cast<u32>(computeData.size())); // we still need to tell vulkan to draw the particles
         }
         else
         {
@@ -146,8 +146,8 @@ int main(int argc, char** argv)
                     velocities[i] *= -1;
             }
             diamond_transform trans;
-            Engine->BindVertices(computeData.data(), computeData.size());
-            Engine->Draw(computeData.size(), -1, trans);
+            Engine->BindVertices(computeData.data(), static_cast<u32>(computeData.size()));
+            Engine->Draw(static_cast<u32>(computeData.size()), -1, trans);
         }
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
@@ -172,13 +172,13 @@ int main3(int argc, char** argv)
         diamond_compute_image_info(imageSize, imageSize, 8)
     };
     diamond_compute_pipeline_create_info cpCreateInfo = {};
-    cpCreateInfo.imageCount = cpImages.size();
+    cpCreateInfo.imageCount = static_cast<int>(cpImages.size());
     cpCreateInfo.imageInfoList = cpImages.data();
     cpCreateInfo.bufferCount = 0;
     cpCreateInfo.bufferInfoList = nullptr;
     cpCreateInfo.computeShaderPath = "../shaders/mandel.comp.spv";
-    cpCreateInfo.groupCountX = ceil(imageSize / 8);
-    cpCreateInfo.groupCountY = ceil(imageSize / 8);
+    cpCreateInfo.groupCountX = static_cast<u32>(ceil(imageSize / 8));
+    cpCreateInfo.groupCountY = static_cast<u32>(ceil(imageSize / 8));
     cpCreateInfo.usePushConstants = true;
     cpCreateInfo.pushConstantsDataSize = sizeof(diamond_test_compute_constants);
 

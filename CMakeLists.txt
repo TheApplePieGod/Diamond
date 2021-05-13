@@ -16,7 +16,7 @@ include_directories("include")
 option(DEBUG "Build Diamond in debug mode" ON)
 option(IMGUI_INTEGRATION "Build diamond with ImGui integration" ON)
 
-## 2. Install the vulkan SDK from https://vulkan.lunarg.com/sdk/home and replace the base path below
+## 2. Install the Vulkan SDK (major version 1.2) from https://vulkan.lunarg.com/sdk/home and replace the base path below
 set(VulkanBasePath "C:/VulkanSDK/1.2.162.1")
 include_directories("${VulkanBasePath}/Include")
 find_library(vulkan-1 vulkan-1 "${VulkanBasePath}/Lib")
@@ -35,7 +35,8 @@ add_custom_command(
 file(GLOB SOURCES "src/*.cpp")
 
 ## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
-## otherwise, change nothing
+## otherwise, change nothing. Note: if you are compiling the test .exe, it relies on glslc.exe being accessable.
+## To do this, add your vulkan installation's /Bin to your system path (e.g. C:\VulkanSDK\1.2.162.1\Bin)
 # add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
 add_library(Diamond ${SOURCES})
 
