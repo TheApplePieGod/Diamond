@@ -11,6 +11,63 @@
 #include <glm/mat4x4.hpp>
 #include <chrono>
 
+// See diamond_graphics_pipeline_create_info for info about the usage of these macros
+
+// This macro is standalone and should be called in the body of the vertex struct
+// @param struct The name of the vertex struct this is being defined in
+#define DIAMOND_VERTEX_BINDING_DESCRIPTION(struct) \
+    static VkVertexInputBindingDescription GetBindingDescription() \
+    { \
+        VkVertexInputBindingDescription bindingDescription{}; \
+        bindingDescription.binding = 0; \
+        bindingDescription.stride = sizeof(struct); \
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; \
+        return bindingDescription; \
+    }
+
+// Each member of the vertex structure that should be exposed to the shader needs one of these defined
+// Not all members need to be exposed, but the order they are defined matches the layout location index in glsl
+// @param struct The name of the vertex struct this is being defined in
+// @param memberName the name of the struct member variable this attribute should be associated with
+// @param memberType The type of variable the member is. This is a VK_FORMAT type; diamond_vertex_attribute_sizes includes some aliases for ease of access
+#define DIAMOND_VERTEX_ATTRIBUTE(struct, memberName, memberType) \
+    attributeDescription = {}; \
+    attributeDescription.binding = 0; \
+    attributeDescription.location = static_cast<uint32_t>(attributeDescriptions.size()); \
+    attributeDescription.format = memberType; \
+    attributeDescription.offset = offsetof(struct, memberName); \
+    attributeDescriptions.push_back(attributeDescription); \
+
+// Call this macro in the body of the vertex struct
+// @param attributes A series of DIAMOND_VERTEX_ATTRIBUTE calls
+// @note Do NOT separate each attribute call with a comma
+#define DIAMOND_VERTEX_ATTRIBUTE_DESCRIPTIONS(attributes) \
+    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions() \
+    { \
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions; \
+        VkVertexInputAttributeDescription attributeDescription{}; \
+        attributes \
+        return attributeDescriptions; \
+    }
+
+// common typenames when using the above macros to define a custom vertex layout
+struct diamond_vertex_attribute_sizes
+{
+    static const VkFormat float32 = VK_FORMAT_R32_SFLOAT;
+    static const VkFormat float32_2 = VK_FORMAT_R32G32_SFLOAT;
+    static const VkFormat float32_3 = VK_FORMAT_R32G32B32_SFLOAT;
+    static const VkFormat float32_4 = VK_FORMAT_R32G32B32A32_SFLOAT;
+    static const VkFormat float64 = VK_FORMAT_R64_SFLOAT;
+    static const VkFormat float64_2 = VK_FORMAT_R64G64_SFLOAT;
+    static const VkFormat float64_3 = VK_FORMAT_R64G64B64_SFLOAT;
+    static const VkFormat float64_4 = VK_FORMAT_R64G64B64A64_SFLOAT;
+    static const VkFormat signed_integer32 = VK_FORMAT_R32_SINT;
+    static const VkFormat unsigned_integer32 = VK_FORMAT_R32_UINT;
+    static const VkFormat signed_integer64 = VK_FORMAT_R64_SINT;
+    static const VkFormat unsigned_integer64 = VK_FORMAT_R64_UINT;
+};
+
+// The various ways a camera can view the environment
 enum diamond_camera_mode: uint16_t
 {
     Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life
@@ -175,8 +232,8 @@ struct diamond_compute_pipeline_create_info
     uint32_t groupCountX = 1; // see https://vkguide.dev/docs/gpudriven/compute_shaders/
     uint32_t groupCountY = 1;
     uint32_t groupCountZ = 1;
-    bool usePushConstants = false; // see http://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/PushConstants.1pp.pdf
-    int pushConstantsDataSize = 0;
+    bool usePushConstants = false; // see https://vkguide.dev/docs/chapter-3/push_constants/
+    int pushConstantsDataSize = 0; // size of the push constants data struct if usePushConstants is set to true
 };
 
 // Information structure for creating a graphics pipeline
@@ -185,17 +242,17 @@ struct diamond_graphics_pipeline_create_info
     const char* vertexShaderPath = ""; // path to the compiled .spv shader (See https://github.com/google/shaderc/tree/main/glslc for .spv shader compilation)
     const char* fragmentShaderPath = "";
 
-    // these fields only need to be changed when using custom vertices
-    // this feature is still pretty rudimentary, so there isn't much documentation on it and it is basically
-    // all bare bones Vulkan. Use diamond_vertex and diamond_particle_vertex as examples on how to set up
-    // the attribute and binding descriptions
+    // These fields only need to be changed when using custom vertices
+    // When defining GetAttributeDescriptions and GetBindingDescription, look at diamond_vertex for the bare bones vulkan implementation, or
+    // use the DIAMOND_VERTEX_BINDING_DESCRIPTION and DIAMOND_VERTEX_ATTRIBUTE_DESCRIPTIONS macros to simplify the process (see diamond_particle_vertex
+    // for an example of these being used)
     int vertexSize = sizeof(diamond_vertex);
     std::vector<VkVertexInputAttributeDescription> (*getVertexAttributeDescriptions)() = diamond_vertex::GetAttributeDescriptions;
     VkVertexInputBindingDescription (*getVertexBindingDescription)() = diamond_vertex::GetBindingDescription;
     VkPrimitiveTopology vertexTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; // see https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPrimitiveTopology.html
 
-    bool useCustomPushConstants = false;
-    int pushConstantsDataSize = 0;
+    bool useCustomPushConstants = false; // override the default diamond push constants (diamond_object_data) (see https://vkguide.dev/docs/chapter-3/push_constants/)
+    int pushConstantsDataSize = 0; // size of the push constant data struct if useCustomPushConstants is set to true
 
     // max amounts that can be bound to each pipeline
     uint32_t maxVertexCount = 1000;
@@ -216,31 +273,12 @@ struct diamond_particle_vertex
     glm::vec2 padding;
     glm::vec4 color; // Color to be either rendered by itself or applied as a hue to the texture of the vertex
 
-    static VkVertexInputBindingDescription GetBindingDescription()
-    {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(diamond_particle_vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    DIAMOND_VERTEX_BINDING_DESCRIPTION(diamond_particle_vertex)
 
-        return bindingDescription;
-    }
-
-    static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
-    {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(diamond_particle_vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(diamond_particle_vertex, color);
-
-        return attributeDescriptions;
-    }
+    DIAMOND_VERTEX_ATTRIBUTE_DESCRIPTIONS(
+        DIAMOND_VERTEX_ATTRIBUTE(diamond_particle_vertex, pos, diamond_vertex_attribute_sizes::float32_2)
+        DIAMOND_VERTEX_ATTRIBUTE(diamond_particle_vertex, color, diamond_vertex_attribute_sizes::float32_4)
+    )
 };
 
 struct diamond_test_compute_buffer

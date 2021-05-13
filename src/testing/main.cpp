@@ -83,7 +83,7 @@ int main2(int argc, char** argv)
 int main(int argc, char** argv)
 {
     diamond* Engine = new diamond();
-    
+
     int particleCount = 100000;
     Engine->Initialize(800, 600, "Diamond Particle Simulation Example", "../../images/default-texture.png");
 
