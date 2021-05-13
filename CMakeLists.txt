@@ -36,8 +36,8 @@ file(GLOB SOURCES "src/*.cpp")
 
 ## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
 ## otherwise, change nothing
- add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
-#add_library(Diamond ${SOURCES})
+# add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
+add_library(Diamond ${SOURCES})
 
 if (IMGUI_INTEGRATION)
     add_subdirectory("src/lib/imgui")
