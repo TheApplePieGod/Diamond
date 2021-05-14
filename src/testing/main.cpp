@@ -12,6 +12,7 @@ int basic_example(int argc, char** argv)
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "Diamond Basic Example", "../../images/default-texture.png");
+    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "../shaders/basic.vert.spv";
@@ -42,9 +43,11 @@ int basic_example(int argc, char** argv)
     double timer = 0.0;
     int framesPerRow = 12;
     int totalFrames = 72;
+
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
+        Engine->BeginFrame();
         Engine->SetGraphicsPipeline(0);
         timer += Engine->FrameDelta();
 
@@ -85,6 +88,7 @@ int particle_example(int argc, char** argv)
 
     int particleCount = 100000;
     Engine->Initialize(800, 600, "Diamond Particle Simulation Example", "../../images/default-texture.png");
+    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
 
     std::array<diamond_compute_buffer_info, 2> cpBuffers {
         diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer2), true, true),
@@ -123,9 +127,11 @@ int particle_example(int argc, char** argv)
 
     int frameCount = 0;
     bool useCompute = true; // disable to run the same code on the cpu to compare performance
+
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
+        Engine->BeginFrame();
         
         Engine->SetGraphicsPipeline(0);
 
@@ -165,6 +171,7 @@ int mandelbrot_example(int argc, char** argv)
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "Diamond Mandelbrot Set Example", "../../images/default-texture.png");
+    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
 
     int imageSize = 2048;
     std::array<diamond_compute_image_info, 1> cpImages {
@@ -195,9 +202,11 @@ int mandelbrot_example(int argc, char** argv)
     diamond_test_compute_constants constants = {};
     constants.offsetX = 1.5f;
     constants.offsetY = 0.0008f;
+
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
+        Engine->BeginFrame();
 
         Engine->SetGraphicsPipeline(0);
 

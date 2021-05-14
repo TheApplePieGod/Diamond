@@ -2144,13 +2144,20 @@ void diamond::MapMemory(void* data, u32 dataSize, u32 elementCount, VkDeviceMemo
     vkUnmapMemory(logicalDevice, bufferMemory);
 }
 
-void diamond::BeginFrame(diamond_camera_mode camMode, glm::vec2 camDimensions, glm::mat4 camViewMatrix)
+void diamond::SetCameraViewMatrix(glm::mat4 matrix)
 {
-    frameStartTime = std::chrono::high_resolution_clock::now();
+    cameraViewMatrix = matrix;
+}
 
+void diamond::UpdateCameraViewMode(diamond_camera_mode camMode, glm::vec2 camDimensions)
+{
     cameraMode = camMode;
     cameraDimensions = camDimensions;
-    cameraViewMatrix = camViewMatrix;
+}
+
+void diamond::BeginFrame()
+{
+    frameStartTime = std::chrono::high_resolution_clock::now();
 
     glfwPollEvents();
 

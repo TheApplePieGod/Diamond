@@ -73,7 +73,7 @@ enum diamond_camera_mode: uint16_t
 {
     Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life
     OrthographicViewportDependent = 1, // Orthographic: rendered as a flat image with no perspective or visual depth between objects, scale of objects do not change with viewport size
-    OrthographicViewportIndependent = 2 // same as 1 except objects scale with viewport size
+    OrthographicViewportIndependent = 2 // same as OrthographicViewportDependent except objects scale with viewport size
 };
 
 // Basic data structure to represent a 2d transformation
