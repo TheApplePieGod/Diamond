@@ -2287,7 +2287,8 @@ void diamond::EndFrame(glm::vec4 clearColor)
 
     auto stop = std::chrono::high_resolution_clock::now();
     double dt = std::max((double)(std::chrono::duration_cast<std::chrono::nanoseconds>(stop - frameStartTime)).count(), 0.0);
-    deltaTimes[frameCount] = dt * pow(10, -6);
+    currentFrameDelta = dt * pow(10, -6);
+    deltaTimes[frameCount] = currentFrameDelta;
     frameCount++;
 
     if (frameCount == deltaTimes.size())
