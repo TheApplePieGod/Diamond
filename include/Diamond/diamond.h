@@ -319,9 +319,27 @@ public:
     * @param quadTransform The world space transform of the quad
     * @param color The color applied to the quad
     * @see RegisterTexture() diamond_transform
-    * @warning This is is not compatible when custom vertex structure or push constants are being used
+    * @warning This is is not compatible when a custom vertex structure is being used
     */
     void DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
+
+    /*
+    * Draw a quad which has an animated texture to the screen with a given transform
+    * 
+    * This can be called any number of times during a frame. There is no need to call BindVertices() or BindIndices(), as
+    * this function handles the geometry for you.
+    * 
+    * @param textureIndex The index of the registered texture that will be drawn on the quad. Pass -1 to render only color
+    * @param framesPerRow The amount of frames in a single row of the animated texture
+    * @param totalFrames The total amount of frames in the animated texture
+    * @param currentFrame The current frame of the animation that should be rendered
+    * @param quadTransform The world space transform of the quad
+    * @param color The color applied to the quad
+    * @see RegisterTexture() diamond_transform
+    * @warning This is is not compatible when a custom vertex structure is being used
+    * @note Each frame of the animation must be uniform in size
+    */
+    void DrawAnimatedQuad(int textureIndex, int framesPerRow, int totalFrames, int currentFrame, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
 
     /*
     * Draw many quads to the screen each with a given transform
@@ -412,7 +430,11 @@ public:
     void SetWindowSize(glm::vec2 size);
 
     /*
-    * @returns The time elapsed during the last frame
+    * Records the time elapsed between when BeginFrame() and EndFrame() are called. The time is queried
+    * using std::high_resolution_clock in nanoseconds and then converted to milliseconds and averaged and
+    * trimmed over a period of 11 frames in order to give the most accurate and consistent result.
+    *
+    * @returns The time in milliseconds
     */
     inline double FrameDelta() { return frameDelta; };
 
@@ -529,7 +551,7 @@ private:
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height);
-    VkImageView CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory);
+    VkImageView CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory, int& width, int& height);
     VkImageView CreateTextureImage(void* data, VkImage& image, VkDeviceMemory& imageMemory, int width, int height);
     void CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
@@ -539,6 +561,8 @@ private:
 
     GLFWwindow* window;
 
+    std::array<double, 11> deltaTimes;
+    int frameCount = 0;
     double frameDelta = 0.0;
     double fps = 0.0;
     std::chrono::steady_clock::time_point frameStartTime;

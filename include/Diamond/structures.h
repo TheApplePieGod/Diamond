@@ -51,6 +51,7 @@
     }
 
 // common typenames when using the above macros to define a custom vertex layout
+// convention is datatype<size>_count when count > 0 (ex glm::vec2)
 struct diamond_vertex_attribute_sizes
 {
     static const VkFormat float32 = VK_FORMAT_R32_SFLOAT;
@@ -99,6 +100,8 @@ struct diamond_texture
     VkDeviceMemory memory;
     VkImageView imageView;
     VkImageLayout imageLayout;
+    int width;
+    int height;
     uint32_t id;
 };
 

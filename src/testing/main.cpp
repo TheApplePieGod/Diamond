@@ -2,25 +2,16 @@
 #include <iostream>
 #include "../util/defs.h"
 #include <glm/gtc/matrix_transform.hpp>
-#include <chrono>
+#include <imgui/imgui.h>
+
+// the main function of the program is at the bottom of this file
 
 // basic example
-int main2(int argc, char** argv)
+int basic_example(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "Diamond Basic Example", "../../images/default-texture.png");
-
-    int particleCount = 100000;
-    std::array<diamond_compute_buffer_info, 1> cpBuffers { diamond_compute_buffer_info(sizeof(diamond_test_compute_buffer), false, true) };
-    diamond_compute_pipeline_create_info cpCreateInfo = {};
-    std::vector<glm::vec2> computeData(particleCount);
-    cpCreateInfo.bufferCount = static_cast<int>(cpBuffers.size());
-    cpCreateInfo.bufferInfoList = cpBuffers.data();
-    cpCreateInfo.computeShaderPath = "../shaders/basic.comp.spv";
-    cpCreateInfo.groupCountX = static_cast<u32>(ceil(particleCount / 64.0));
-    Engine->CreateComputePipeline(cpCreateInfo);
-    Engine->MapComputeData(0, 0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // map inital data
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "../shaders/basic.vert.spv";
@@ -40,28 +31,33 @@ int main2(int argc, char** argv)
     for (int i = 0; i < quadCount; i++)
     {
         quadOffsetScales[i] = { currentLocation, 0.f, 50.f, 500.f };
-        quadTextureIndexes[i] = i % 3;
+        if (i % 2 == 0)
+            quadTextureIndexes[i] = 0;
+        else
+            quadTextureIndexes[i] = 2;
         currentLocation += 100;
     }
 
+    double animationTime = 4000.0; // 4 seconds
+    double timer = 0.0;
+    int framesPerRow = 12;
+    int totalFrames = 72;
     while (Engine->IsRunning())
     {
         Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
-        
         Engine->SetGraphicsPipeline(0);
+        timer += Engine->FrameDelta();
 
-        // Compute shader pipeline example
-        Engine->RunComputeShader(0);
-        Engine->DownloadComputeData(0, 0);
-        Engine->RetrieveComputeData(0, 0, 0, sizeof(diamond_test_compute_buffer), computeData.data()); // retrieve updated data
-        //std::cout << computeData[0].x; // debug print
+        // imgui can go anywhere in between BeginFrame() and EndFrame()
+        ImGui::Begin("Window");
+        ImGui::End();
 
-        // Graphics pipeline example
+        int currentFrame = static_cast<int>((timer / animationTime) * totalFrames);
         diamond_transform quadTransform;
-        quadTransform.location = { 0.f, 0.f };
+        quadTransform.location = { 0.f, 800.f };
         quadTransform.rotation = 45.f;
-        quadTransform.scale = { 500.f ,1000.f };
-        Engine->DrawQuad(1, quadTransform);
+        quadTransform.scale = { 500.f , 500.f };
+        Engine->DrawAnimatedQuad(1, framesPerRow, totalFrames, currentFrame, quadTransform);
 
         quadTransform.location = { 300.f, 0.f };
         quadTransform.rotation = -45.f;
@@ -70,8 +66,11 @@ int main2(int argc, char** argv)
 
         Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
 
+        if (timer == animationTime)
+            timer = 0.0;
+
+        //std::cout << "FPS: " << Engine->FPS() << std::endl;
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
-        std::cout << "FPS: " << Engine->FPS() << std::endl;
     }
 
     Engine->Cleanup();
@@ -80,7 +79,7 @@ int main2(int argc, char** argv)
 }
 
 // particle simulation example
-int main(int argc, char** argv)
+int particle_example(int argc, char** argv)
 {
     diamond* Engine = new diamond();
 
@@ -161,7 +160,7 @@ int main(int argc, char** argv)
 }
 
 // mandelbrot set example
-int main3(int argc, char** argv)
+int mandelbrot_example(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
@@ -219,4 +218,12 @@ int main3(int argc, char** argv)
     Engine->Cleanup();
 
     return 0;
+}
+
+// uncomment the example to use before compiling
+int main(int argc, char** argv)
+{
+    return basic_example(argc, argv);
+    //return particle_example(argc, argv);
+    //return mandelbrot_example(argc, argv);
 }
