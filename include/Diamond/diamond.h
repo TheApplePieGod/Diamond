@@ -460,7 +460,14 @@ public:
     inline double FrameDelta() { return frameDelta; };
 
     /*
-    * @returns The current FPS based off of the current FrameDelta
+    * Same as FrameDelta() except returns the raw delta for the last frame with no smoothing or averaging
+    *
+    * @returns The time in milliseconds
+    */
+    inline double FrameDeltaRaw() { return currentFrameDelta; };
+
+    /*
+    * @returns The current FPS based off of the current averaged FrameDelta
     */
     inline double FPS() { return fps; };
 
@@ -585,6 +592,7 @@ private:
     std::array<double, 11> deltaTimes;
     int frameCount = 0;
     double frameDelta = 0.0;
+    double currentFrameDelta = 0.0;
     double fps = 0.0;
     std::chrono::steady_clock::time_point frameStartTime;
 
