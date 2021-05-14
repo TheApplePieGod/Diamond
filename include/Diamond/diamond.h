@@ -33,7 +33,7 @@ public:
     * @param cameraViewMatrix Specify the view matrix of the camera
     * @see GenerateViewMatrix()
     */
-    void BeginFrame(diamond_camera_mode cameraMode, glm::vec2 camDimensions, glm::mat4 cameraViewMatrix);
+    void BeginFrame();
 
     /*
     * Called at the end of every frame in the game loop
@@ -50,6 +50,27 @@ public:
     * Called at the very end of the program when closing. Cleans up engine & vulkan resources.
     */
     void Cleanup();
+
+    /*
+    * Sets the view matrix of the camera to render the scene from
+    *
+    * The matrix must be regenerated and set every time the camera moves
+    * 
+    * @param matrix The view matrix
+    * @see GenerateViewMatrix()
+    */
+    void SetCameraViewMatrix(glm::mat4 matrix);
+
+    /*
+    * Sets the mode of the camera which renders the scene
+    *
+    * This only needs to be called once unless the mode or dimensions change (which typically won't happen)
+    * 
+    * @param camMode The projection mode of the camera
+    * @camDimensions The size that the camera should be able to see (only applies for OrthographicViewportIndependent mode)
+    * @see diamond_camera_mode
+    */
+    void UpdateCameraViewMode(diamond_camera_mode camMode, glm::vec2 camDimensions);
 
     /*
     * Register a texture to the internal texture array
@@ -576,7 +597,7 @@ private:
     diamond_camera_mode cameraMode = diamond_camera_mode::OrthographicViewportIndependent;
     glm::mat4 cameraViewMatrix;
     glm::mat4 cameraProjMatrix;
-    glm::vec2 cameraDimensions;
+    glm::vec2 cameraDimensions = { 500.f, 500.f };
     int savedWindowSizeAndPos[4]; // size xy, pos xy
     std::vector<diamond_vertex> quadVertices;
     std::vector<uint16_t> quadIndices;
