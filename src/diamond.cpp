@@ -4,6 +4,7 @@
 #include <fstream>
 #include <set>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -359,7 +360,7 @@ void diamond::CreateSwapChain()
 u32 diamond::RegisterTexture(const char* filePath)
 {
     diamond_texture newTex{};
-    newTex.imageView = CreateTextureImage(filePath, newTex.image, newTex.memory);
+    newTex.imageView = CreateTextureImage(filePath, newTex.image, newTex.memory, newTex.width, newTex.height);
     newTex.id = static_cast<u32>(textureArray.size());
     newTex.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     textureArray.push_back(newTex);
@@ -372,6 +373,8 @@ u32 diamond::RegisterTexture(void* data, int width, int height)
     newTex.imageView = CreateTextureImage(data, newTex.image, newTex.memory, width, height);
     newTex.id = static_cast<u32>(textureArray.size());
     newTex.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    newTex.width = width;
+    newTex.height = height;
     textureArray.push_back(newTex);
     return newTex.id;
 }
@@ -671,7 +674,7 @@ void diamond::DrawFromCompute(int pipelineIndex, int bufferIndex, u32 vertexCoun
     }
 }
 
-// todo: bake quad vertex & index data?
+// todo: bake quad vertex & index data in separate buffer?
 void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color)
 {
     const diamond_vertex vertices[] =
@@ -680,6 +683,32 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
         {{0.5f, -0.5f}, color, {1.0f, 1.0f}, -1},
         {{0.5f, 0.5f}, color, {1.0f, 0.0f}, -1},
         {{-0.5f, 0.5f}, color, {0.0f, 0.0f}, -1}
+    };
+    const u16 indices[] =
+    {
+        0, 3, 2, 2, 1, 0
+    };
+
+    BindVertices(vertices, 4);
+    BindIndices(indices, 6);
+    DrawIndexed(6, 4, textureIndex, quadTransform);
+}
+
+void diamond::DrawAnimatedQuad(int textureIndex, int framesPerRow, int totalFrames, int currentFrame, diamond_transform quadTransform, glm::vec4 color)
+{
+    int width = textureArray[textureIndex].width;
+    int height = textureArray[textureIndex].height;
+    glm::vec2 frameSize = { (f32)width / framesPerRow / width, (f32)height / (totalFrames / framesPerRow) / height };
+    currentFrame = currentFrame % totalFrames;
+    f32 frameX = static_cast<f32>(currentFrame % framesPerRow);
+    f32 frameY = static_cast<f32>(currentFrame / framesPerRow);
+
+    const diamond_vertex vertices[] =
+    {
+        {{-0.5f, -0.5f}, color, { frameSize.x * frameX, frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, -0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, 0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * frameY }, -1},
+        {{-0.5f, 0.5f}, color, { frameSize.x * frameX, frameSize.y * frameY }, -1}
     };
     const u16 indices[] =
     {
@@ -925,9 +954,9 @@ void diamond::CreateImage(uint32_t width, uint32_t height, VkFormat format, uint
     vkBindImageMemory(logicalDevice, image, imageMemory, 0);
 }
 
-VkImageView diamond::CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory)
+VkImageView diamond::CreateTextureImage(const char* imagePath, VkImage& image, VkDeviceMemory& imageMemory, int& width, int& height)
 {
-    int width, height, channels;
+    int channels;
     stbi_uc* pixels = stbi_load(imagePath, &width, &height, &channels, STBI_rgb_alpha);
     Assert(pixels != nullptr)
 
@@ -2250,8 +2279,25 @@ void diamond::EndFrame(glm::vec4 clearColor)
     currentFrameIndex = (currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
     auto stop = std::chrono::high_resolution_clock::now();
-    frameDelta = std::max((f32)(std::chrono::duration_cast<std::chrono::milliseconds>(stop - frameStartTime)).count(), 0.5f);
-    fps = 1.f / (frameDelta / 1000.f);
+    double dt = std::max((double)(std::chrono::duration_cast<std::chrono::nanoseconds>(stop - frameStartTime)).count(), 0.0);
+    deltaTimes[frameCount] = dt * pow(10, -6);
+    frameCount++;
+
+    if (frameCount == deltaTimes.size())
+    {
+        std::sort(deltaTimes.begin(), deltaTimes.end());
+        double avg = 0.f;
+        for (int i = 2; i < deltaTimes.size() - 3; i++)
+        {
+            avg += deltaTimes[i];
+        }
+        avg /= deltaTimes.size() - 6;
+
+        frameDelta = avg;
+        fps = 1.f / (frameDelta / 1000.f);
+
+        frameCount = 0;
+    }
 }
 
 void diamond::SetGraphicsPipeline(int pipelineIndex)

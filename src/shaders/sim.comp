@@ -9,11 +9,11 @@ struct vertex
   vec4 color;
 };
 
+// set is always zero, binding is always the same index as the buffer in the pipeline creation struct
 layout(set = 0, binding = 0, std430) buffer ParticleData
 {
     vertex vertices[];
 } particleData;
-
 layout(set = 0, binding = 1, std430) buffer VelocityData
 {
     vec2 velocities[];

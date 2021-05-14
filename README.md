@@ -8,10 +8,19 @@ A Vulkan based cross platform 2D rendering engine. While Diamond is an 'engine',
 
 Diamond handles Vulkan behind the scenes and exposes an api for a basic 2d application. Ranging from a 2d game to a particle simulation using compute shaders, Diamond can powerfully handle many use cases. Diamond also has optional easy-to-use integration with [ImGui](https://github.com/ocornut/imgui).
 
+## Features
+- Highly customizable Vulkan compute shader integration
+- Integrated 2D graphics functions designed to ease the process of developing a simple game or application
+- Highly customizable graphics pipelines for the more complex applications of the engine
+- Compile-time optional and simple integration with ImGui 
+- Exposes handles into internal Vulkan and GLFW components for more advanced usage
+- Some basic game engine tools such as delta time, fps, and screen sizing 
+
 ## Caveats?
 
 - Diamond is currently work in progress and there is a lot which is subject to change or not implemented yet
 - Diamond is not completely library independent
+- Asynchronous rendering has not been tested but is likely incompatible 
 
 ## License
 Copyright (C) 2021 [Evan Thompson](https://evanthompson.site/)
@@ -68,7 +77,7 @@ $ cmake --build . --config Release
 $ cmake --install . --config Release
 ```
 
-5. This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library files are also stored in the build directory under your specified configuration.
+5. This will install Diamond to your PC and allows easy integration with another CMake project. Alternatively, the built library/exe files are also stored in the build directory under your specified configuration.
 
 To integrate with another CMake project, include the following lines in your project:
 ```
@@ -92,7 +101,7 @@ All of the libraries that are included with Diamond are referenced in the follow
 
 ## Usage
 
-The main.cpp in the Diamond repository should give some good insight on basic setup and usage of the library. The two main header files (diamond.h and structures.h) contain extensive documentation on the api and usage of Diamond. Although the documentation goes fairly in depth, it is recommended to have a rudimentary understanding of how rendering APIs like Vulkan or DirectX function, as well as a strong grasp on C++.
+The main.cpp in the Diamond repository contains a few examples which should give some good insight on basic setup and usage of the library. The associated shader files for the examples also have some documentation on how they can be layed out. The two main header files (diamond.h and structures.h) contain extensive documentation on the api and usage of Diamond. Although the documentation goes fairly in depth, it is recommended to have a rudimentary understanding of how rendering APIs like Vulkan or DirectX function, as well as a strong grasp on C++.
 
 ---
 
@@ -163,3 +172,7 @@ int main(int argc, char** argv)
 
 - Diamond uses the cross platform window manager library [GLFW](https://www.glfw.org/) behind the scenes, so the engine exposes the GLFW window handle in order to be used for input and other window related functionality.
 - Because Diamond is built on Vulkan, Vulkan expects .spv compiled shaders. The Diamond repository includes a CompileShaders.bat which uses [glslc](https://github.com/google/shaderc/tree/main/glslc) to compile and is called via CMake at build time, so it is a good script to reuse or use as a basis.
+
+---
+
+### Feel free to submit an issue for any bugs and/or feature requests
