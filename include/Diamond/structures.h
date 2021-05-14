@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning( disable : 4103 ) // strange issue with including glm
 
 #define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
