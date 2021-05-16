@@ -679,10 +679,10 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
 {
     const diamond_vertex vertices[] =
     {
-        {{-0.5f, -0.5f}, color, {0.0f, 1.0f}, -1},
-        {{0.5f, -0.5f}, color, {1.0f, 1.0f}, -1},
-        {{0.5f, 0.5f}, color, {1.0f, 0.0f}, -1},
-        {{-0.5f, 0.5f}, color, {0.0f, 0.0f}, -1}
+        {{-0.5f, -0.5f, 0.f}, color, {0.0f, 1.0f}, -1},
+        {{0.5f, -0.5f, 0.f}, color, {1.0f, 1.0f}, -1},
+        {{0.5f, 0.5f, 0.f}, color, {1.0f, 0.0f}, -1},
+        {{-0.5f, 0.5f, 0.f}, color, {0.0f, 0.0f}, -1}
     };
     const u16 indices[] =
     {
@@ -705,10 +705,10 @@ void diamond::DrawAnimatedQuad(int textureIndex, int framesPerRow, int totalFram
 
     const diamond_vertex vertices[] =
     {
-        {{-0.5f, -0.5f}, color, { frameSize.x * frameX, frameSize.y * (frameY + 1) }, -1},
-        {{0.5f, -0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * (frameY + 1) }, -1},
-        {{0.5f, 0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * frameY }, -1},
-        {{-0.5f, 0.5f}, color, { frameSize.x * frameX, frameSize.y * frameY }, -1}
+        {{-0.5f, -0.5f, 0.f}, color, { frameSize.x * frameX, frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, -0.5f, 0.f}, color, { frameSize.x * (frameX + 1), frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, 0.5f, 0.f}, color, { frameSize.x * (frameX + 1), frameSize.y * frameY }, -1},
+        {{-0.5f, 0.5f, 0.f}, color, { frameSize.x * frameX, frameSize.y * frameY }, -1}
     };
     const u16 indices[] =
     {
@@ -786,10 +786,10 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
         if (texCoords != nullptr)
             texCoord = texCoords[i];
 
-        quadVertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.w }, textureIndexes[i] };
-        quadVertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.w }, textureIndexes[i] };
-        quadVertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.y }, textureIndexes[i] };
-        quadVertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.y }, textureIndexes[i] };
+        quadVertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.x, texCoord.w }, textureIndexes[i] };
+        quadVertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.z, texCoord.w }, textureIndexes[i] };
+        quadVertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.z, texCoord.y }, textureIndexes[i] };
+        quadVertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.x, texCoord.y }, textureIndexes[i] };
         quadIndices[indicesIndex] =     baseIndices[0] + vertexIndex;
         quadIndices[indicesIndex + 1] = baseIndices[1] + vertexIndex;
         quadIndices[indicesIndex + 2] = baseIndices[2] + vertexIndex;
@@ -803,14 +803,14 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
     DrawIndexed(static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
 }
 
-glm::mat4 diamond::GenerateViewMatrix(glm::vec2 cameraPosition)
+glm::mat4 diamond::GenerateViewMatrix(glm::vec3 cameraPosition)
 {
-    return glm::lookAt(glm::vec3(cameraPosition.x, cameraPosition.y, 5.f), glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
+    return glm::lookAt(cameraPosition, glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
 }
 
 glm::mat4 diamond::GenerateModelMatrix(diamond_transform objectTransform)
 {
-    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, 0.f));
+    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, objectTransform.zPosition));
     model = model * glm::rotate(glm::mat4(1.f), glm::radians(objectTransform.rotation), glm::vec3(0.0f, 0.0f, -1.0f));
     model = model * glm::scale(glm::mat4(1.f), glm::vec3(objectTransform.scale, 1.f));
     return model;
@@ -1062,13 +1062,49 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
 {
     f32 aspect = swapChain.swapChainExtent.width / (f32) swapChain.swapChainExtent.height;
 
-    if (cameraMode == diamond_camera_mode::Perspective)
-        cameraProjMatrix = glm::perspective(glm::radians(75.f), aspect, 0.1f, 10.f);
-    else if (cameraMode == OrthographicViewportDependent)
-        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, 0.1f, 50.f));
-    else
-        //proj = glm::transpose(glm::ortho(-0.5f * aspect, 0.5f * aspect, 0.5f, -0.5f, 0.1f, 50.f));
-        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * cameraDimensions.x, 0.5f * cameraDimensions.x, 0.5f * cameraDimensions.y, -0.5f * cameraDimensions.y, 0.1f, 50.f));
+    f32 zn = 0.1f;
+    f32 zf = 50.f;
+    switch (cameraMode)
+    {
+        default:
+        case diamond_camera_mode::OrthographicViewportDependent:
+            cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, zn, zf));
+            break;
+        case diamond_camera_mode::OrthographicViewportIndependent:
+            cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * cameraDimensions.x, 0.5f * cameraDimensions.x, 0.5f * cameraDimensions.y, -0.5f * cameraDimensions.y, zn, zf));
+            break;
+        case diamond_camera_mode::FlatOrthographicViewportDependent:
+        {
+            f32 l = -0.5f * swapChain.swapChainExtent.width;
+            f32 r = 0.5f * swapChain.swapChainExtent.width;
+            f32 b = 0.5f * swapChain.swapChainExtent.height;
+            f32 t = -0.5f * swapChain.swapChainExtent.height;
+            cameraProjMatrix = glm::mat4(
+                2.f / (r - l), 0, 0, 0,
+                0, 2.f / (t - b), 0, 0,
+                0, 0, 1.f / (zn - zf), 0,
+                (l + r) / (l - r), (t + b) / (b - t), zn / (zn - zf), 1
+            );
+            cameraProjMatrix = glm::transpose(cameraProjMatrix);
+        } break;
+        case diamond_camera_mode::FlatOrthographicViewportIndependent:
+        {
+            f32 l = -0.5f * cameraDimensions.x;
+            f32 r = 0.5f * cameraDimensions.x;
+            f32 b = 0.5f * cameraDimensions.y;
+            f32 t = -0.5f * cameraDimensions.y;
+            cameraProjMatrix = glm::mat4(
+                2.f / (r - l), 0, 0, 0,
+                0, 2.f / (t - b), 0, 0,
+                0, 0, 1.f / (zn - zf), 0,
+                (l + r) / (l - r), (t + b) / (b - t), zn / (zn - zf), 1
+            );
+            cameraProjMatrix = glm::transpose(cameraProjMatrix);
+        } break;
+        case diamond_camera_mode::Perspective:
+            cameraProjMatrix = glm::perspective(glm::radians(75.f), aspect, zn, zf);
+            break;
+    }
 
     diamond_frame_buffer_object fbo{};
     fbo.viewProj = cameraProjMatrix * cameraViewMatrix;

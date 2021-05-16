@@ -25,19 +25,19 @@ if (DEBUG)
     add_compile_definitions(DIAMOND_DEBUG)
 endif()
 
-# build shaders as well
-add_custom_command(
-    OUTPUT CompileShaders
-    COMMAND "CompileShaders.bat"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
 file(GLOB SOURCES "src/*.cpp")
 
 ## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
 ## otherwise, change nothing
-# add_executable(Diamond "${SOURCES}" "src/testing/main.cpp" CompileShaders)
-add_library(Diamond ${SOURCES})
+ add_executable(Diamond "${SOURCES}" "src/testing/main.cpp")
+#add_library(Diamond ${SOURCES})
+
+# build shaders as well
+add_custom_command(
+    TARGET Diamond POST_BUILD
+    COMMAND "CompileShaders.bat"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+)
 
 if (IMGUI_INTEGRATION)
     add_subdirectory("src/lib/imgui")

@@ -64,7 +64,7 @@ public:
     /*
     * Sets the mode of the camera which renders the scene
     *
-    * This only needs to be called once unless the mode or dimensions change (which typically won't happen)
+    * This only needs to be called once unless the mode changes or typically when the screen gets resized
     * 
     * @param camMode The projection mode of the camera
     * @camDimensions The size that the camera should be able to see (only applies for OrthographicViewportIndependent mode)
@@ -403,9 +403,11 @@ public:
     /*
     * Generate a basic 2D view matrix given the position of the camera
     * 
-    * @param cameraPosition World position of the camera
+    * The camera is always looking directly ahead towards z = 0
+    * 
+    * @param cameraPosition World position of the camera (effects of the z position depend on the camera view mode)
     */
-    glm::mat4 GenerateViewMatrix(glm::vec2 cameraPosition);
+    glm::mat4 GenerateViewMatrix(glm::vec3 cameraPosition);
 
     /*
     * Get the camera's projection matrix (CameraMode)

@@ -44,7 +44,7 @@ int basic_example(int argc, char** argv)
     int framesPerRow = 12;
     int totalFrames = 72;
 
-    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 5.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
         Engine->BeginFrame();
@@ -62,9 +62,10 @@ int basic_example(int argc, char** argv)
         quadTransform.scale = { 500.f , 500.f };
         Engine->DrawAnimatedQuad(1, framesPerRow, totalFrames, currentFrame, quadTransform);
 
-        quadTransform.location = { 300.f, 0.f };
+        quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = -45.f;
         quadTransform.scale = { 300.f, 300.f };
+        quadTransform.zPosition = 3.f;
         Engine->DrawQuad(2, quadTransform);
 
         Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
@@ -128,7 +129,7 @@ int particle_example(int argc, char** argv)
     int frameCount = 0;
     bool useCompute = true; // disable to run the same code on the cpu to compare performance
 
-    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 1.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
         Engine->BeginFrame();
@@ -203,7 +204,7 @@ int mandelbrot_example(int argc, char** argv)
     constants.offsetX = 1.5f;
     constants.offsetY = 0.0008f;
 
-    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f))); // should be inside the game loop for a non-static camera
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 1.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
         Engine->BeginFrame();

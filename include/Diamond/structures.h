@@ -72,15 +72,18 @@ struct diamond_vertex_attribute_sizes
 // The various ways a camera can view the environment
 enum diamond_camera_mode: uint16_t
 {
-    Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life
-    OrthographicViewportDependent = 1, // Orthographic: rendered as a flat image with no perspective or visual depth between objects, scale of objects do not change with viewport size
-    OrthographicViewportIndependent = 2 // same as OrthographicViewportDependent except objects scale with viewport size
+    Perspective = 0, // Perspective: rendered in 3d as if it was being viewed in real life (not well tested)
+    OrthographicViewportDependent = 1, // Orthographic: rendered with no perspective or visual depth between objects, scale of objects do not change with viewport size, but the camera can see more of the scene
+    OrthographicViewportIndependent = 2, // Same as OrthographicViewportDependent except objects scale with viewport size and the amount visible remains the same
+    FlatOrthographicViewportDependent = 3, // Same as OrthographicViewportDependent except the z position of objects has no effect on how far away they seem from the camera
+    FlatOrthographicViewportIndependent = 4 // Same as FlatOrthographicViewportIndependent except the z position of objects has no effect on how far away they seem from the camera
 };
 
 // Basic data structure to represent a 2d transformation
 struct diamond_transform
 {
     glm::vec2 location = { 0.f, 0.f }; // World absolute position
+    float zPosition = 0.f; // Depth of the object into the screen
     float rotation = 0.f; // Rotation in degrees
     glm::vec2 scale = { 1.f, 1.f }; // World scale factor
 
@@ -116,7 +119,7 @@ struct diamond_object_data
 // The default vertex used unless a custom vertex structure is specified
 struct diamond_vertex
 {
-    glm::vec2 pos; // Object space position of the vertex
+    glm::vec3 pos; // Object space position of the vertex
     glm::vec4 color; // Color to be either rendered by itself or applied as a hue to the texture of the vertex
     glm::vec2 texCoord; // Texture coordinates [0-1]
     int textureIndex; // Texture to be applied to this specific vertex. Useful when drawing sets of quads in one BindVertices() call. Set to -1 to only render vertex color
@@ -136,7 +139,7 @@ struct diamond_vertex
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions(4);
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[0].offset = offsetof(diamond_vertex, pos);
 
         attributeDescriptions[1].binding = 0;
