@@ -224,11 +224,11 @@ void diamond::Initialize(int width, int height, const char* windowName, const ch
 
     CreateSwapChain();
 
-    // setup rest of pipeline
+    // setup rest of pipeline (todo: get rid of some of this and replace with recreateswap)
     CreateRenderPass();
     CreateDescriptorSetLayout();
-    //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
+    CreateDepthResources();
     // ------------------------
 
     CreateFrameBuffers();
@@ -821,7 +821,7 @@ void diamond::CreateFrameBuffers()
     swapChain.swapChainFrameBuffers.resize(swapChain.swapChainImageViews.size());
     for (int i = 0; i < swapChain.swapChainImageViews.size(); i++)
     {
-        std::array<VkImageView, 2> attachments = { colorImageView, swapChain.swapChainImageViews[i] };
+        std::array<VkImageView, 3> attachments = { colorImageView, swapChain.swapChainImageViews[i], depthImageView };
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
@@ -1025,16 +1025,24 @@ void diamond::CreateColorResources()
     colorImageView = CreateImageView(colorImage, colorFormat, 1);
 }
 
-VkImageView diamond::CreateImageView(VkImage image, VkFormat format, u32 mipLevels)
+void diamond::CreateDepthResources()
+{
+    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    CreateImage(swapChain.swapChainExtent.width, swapChain.swapChainExtent.height, depthFormat, 1, msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+    depthImageView = CreateImageView(depthImage, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+}
+
+VkImageView diamond::CreateImageView(VkImage image, VkFormat format, u32 mipLevels, VkImageAspectFlags aspectFlags)
 {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.levelCount = mipLevels;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
@@ -1322,6 +1330,10 @@ void diamond::CleanupSwapChain()
     vkDestroyImage(logicalDevice, colorImage, nullptr);
     vkFreeMemory(logicalDevice, colorImageMemory, nullptr);
 
+    vkDestroyImageView(logicalDevice, depthImageView, nullptr);
+    vkDestroyImage(logicalDevice, depthImage, nullptr);
+    vkFreeMemory(logicalDevice, depthImageMemory, nullptr);
+
     // for (int i = 0; i < swapChain.swapChainImages.size(); i++)
     // {
     //     vkDestroyBuffer(logicalDevice, uniformBuffers[i], nullptr);
@@ -1367,6 +1379,7 @@ void diamond::RecreateSwapChain()
     //CreateRenderPass();
     //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
+    CreateDepthResources();
     CreateFrameBuffers();
     //CreateUniformBuffers();
     //CreateDescriptorPool();
@@ -1844,6 +1857,18 @@ void diamond::CreateGraphicsPipeline(diamond_graphics_pipeline& pipeline)
     VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipeline.pipelineLayout);
     Assert(result == VK_SUCCESS);
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = pipeline.pipelineInfo.enableDepthTesting;
+    depthStencil.depthWriteEnable = pipeline.pipelineInfo.enableDepthTesting;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f; // Optional
+    depthStencil.maxDepthBounds = 1.0f; // Optional
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {}; // Optional
+    depthStencil.back = {}; // Optional
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
@@ -1853,7 +1878,7 @@ void diamond::CreateGraphicsPipeline(diamond_graphics_pipeline& pipeline)
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr; // Optional
+    pipelineInfo.pDepthStencilState = &depthStencil; // Optional
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState; // Optional
     pipelineInfo.layout = pipeline.pipelineLayout;
@@ -1955,6 +1980,14 @@ void diamond::CreateComputeDescriptorSetLayout(diamond_compute_pipeline& pipelin
 
 void diamond::CreateRenderPass()
 {
+    VkAttachmentDescription depthAttachment{};
+    depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+    depthAttachment.samples = msaaSamples;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChain.swapChainImageFormat;
     colorAttachment.samples = msaaSamples;
@@ -1983,21 +2016,26 @@ void diamond::CreateRenderPass()
     colorAttachmentResolveRef.attachment = 1;
     colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 2;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pResolveAttachments = &colorAttachmentResolveRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, colorAttachmentResolve };
+    std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, colorAttachmentResolve, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = static_cast<u32>(attachments.size());
@@ -2299,9 +2337,13 @@ void diamond::EndFrame(glm::vec4 clearColor)
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChain.swapChainExtent;
 
-        VkClearValue v_clearColor = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
+        std::array<VkClearValue, 3> clearValues{};
+        clearValues[0].color = { clearColor.r, clearColor.g, clearColor.b, clearColor.a };
+        clearValues[1].color = { clearColor.r, clearColor.g, clearColor.b, clearColor.a };
+        clearValues[2].depthStencil = { 1.f, 0 };
         renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &v_clearColor;
+        renderPassInfo.clearValueCount = static_cast<u32>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
         

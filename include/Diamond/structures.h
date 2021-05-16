@@ -261,6 +261,8 @@ struct diamond_graphics_pipeline_create_info
     bool useCustomPushConstants = false; // override the default diamond push constants (diamond_object_data) (see https://vkguide.dev/docs/chapter-3/push_constants/)
     int pushConstantsDataSize = 0; // size of the push constant data struct if useCustomPushConstants is set to true
 
+    bool enableDepthTesting = true; // when enabled, the z position of objects will affect the order they show up on the screen
+
     // max amounts that can be bound to each pipeline
     uint32_t maxVertexCount = 1000;
     uint32_t maxIndexCount = 2000;

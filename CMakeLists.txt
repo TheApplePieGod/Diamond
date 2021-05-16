@@ -29,8 +29,8 @@ file(GLOB SOURCES "src/*.cpp")
 
 ## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
 ## otherwise, change nothing
- add_executable(Diamond "${SOURCES}" "src/testing/main.cpp")
-#add_library(Diamond ${SOURCES})
+# add_executable(Diamond "${SOURCES}" "src/testing/main.cpp")
+add_library(Diamond ${SOURCES})
 
 # build shaders as well
 add_custom_command(

@@ -12,7 +12,7 @@ int basic_example(int argc, char** argv)
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "Diamond Basic Example", "../../images/default-texture.png");
-    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
+    Engine->UpdateCameraViewMode(diamond_camera_mode::FlatOrthographicViewportIndependent, glm::vec2(2000.f, 2000.f));
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "../shaders/basic.vert.spv";
@@ -55,20 +55,21 @@ int basic_example(int argc, char** argv)
         ImGui::Begin("Window");
         ImGui::End();
 
-        int currentFrame = static_cast<int>((timer / animationTime) * totalFrames);
+        Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
+
         diamond_transform quadTransform;
-        quadTransform.location = { 0.f, 800.f };
+        quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = 45.f;
         quadTransform.scale = { 500.f , 500.f };
-        Engine->DrawAnimatedQuad(1, framesPerRow, totalFrames, currentFrame, quadTransform);
-
+        Engine->DrawQuad(2, quadTransform, { 0.2f, 0.2f, 0.2f, 1.f });
+        
+        // quads with transparency need to be rendered last and in order of distance 
+        int currentFrame = static_cast<int>((timer / animationTime) * totalFrames);
         quadTransform.location = { 0.f, 0.f };
-        quadTransform.rotation = -45.f;
+        quadTransform.rotation = 0.f;
         quadTransform.scale = { 300.f, 300.f };
-        quadTransform.zPosition = 3.f;
-        Engine->DrawQuad(2, quadTransform);
-
-        Engine->DrawQuadsOffsetScale(quadTextureIndexes.data(), quadOffsetScales.data(), quadCount);
+        quadTransform.zPosition = 1.f;
+        Engine->DrawAnimatedQuad(1, framesPerRow, totalFrames, currentFrame, quadTransform);
 
         if (timer == animationTime)
             timer = 0.0;
@@ -100,6 +101,8 @@ int particle_example(int argc, char** argv)
     cpCreateInfo.bufferInfoList = cpBuffers.data();
     cpCreateInfo.computeShaderPath = "../shaders/sim.comp.spv";
     cpCreateInfo.groupCountX = static_cast<u32>(ceil(particleCount / 64.0));
+    cpCreateInfo.usePushConstants = true;
+    cpCreateInfo.pushConstantsDataSize = sizeof(f32);
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "../shaders/sim.vert.spv";
@@ -115,11 +118,12 @@ int particle_example(int argc, char** argv)
     // initialze particle data
     std::vector<diamond_particle_vertex> computeData(particleCount);
     std::vector<glm::vec2> velocities(particleCount);
+    f32 vMax = 100.f;
     for (int i = 0; i < computeData.size(); i++)
     {
         computeData[i].pos = glm::vec2(rand() % 2000 - 1000, rand() % 2000 - 1000);
         computeData[i].color = glm::vec4((double) rand() / (RAND_MAX), (double) rand() / (RAND_MAX), (double) rand() / (RAND_MAX), 1.0);
-        velocities[i] = glm::vec2(rand() % 5 - 2.5, rand() % 5 - 2.5);
+        velocities[i] = glm::vec2(fmod(rand(), vMax * 2.f) - vMax, fmod(rand(), vMax * 2.f) - vMax);
     }
 
     Engine->CreateComputePipeline(cpCreateInfo);
@@ -136,18 +140,19 @@ int particle_example(int argc, char** argv)
         
         Engine->SetGraphicsPipeline(0);
 
+        f32 delta = static_cast<f32>(Engine->FrameDeltaRaw() / 1000.0);
         if (useCompute)
         {
             if (frameCount == 0)
                 Engine->UploadComputeData(0, 0);
-            Engine->RunComputeShader(0);
+            Engine->RunComputeShader(0, &delta);
             Engine->DrawFromCompute(0, 0, static_cast<u32>(computeData.size())); // we still need to tell vulkan to draw the particles
         }
         else
         {
             for (int i = 0; i < computeData.size(); i++)
             {
-                computeData[i].pos += velocities[i];
+                computeData[i].pos += velocities[i] * delta;
                 if (abs(computeData[i].pos.x) > 2000 || abs(computeData[i].pos.y) > 2000)
                     velocities[i] *= -1;
             }
@@ -204,7 +209,7 @@ int mandelbrot_example(int argc, char** argv)
     constants.offsetX = 1.5f;
     constants.offsetY = 0.0008f;
 
-    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 1.f))); // should be inside the game loop for a non-static camera
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 5.f))); // should be inside the game loop for a non-static camera
     while (Engine->IsRunning())
     {
         Engine->BeginFrame();
