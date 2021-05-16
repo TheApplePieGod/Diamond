@@ -2,7 +2,7 @@
 
 # Diamond
 
-A Vulkan based cross platform 2D rendering engine. While Diamond is an 'engine', it is not a standalone application and must be rooted in another application.
+A Vulkan based cross platform 2D rendering engine/library.
 
 ## Why Diamond?
 

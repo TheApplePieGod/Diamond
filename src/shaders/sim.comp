@@ -19,9 +19,13 @@ layout(set = 0, binding = 1, std430) buffer VelocityData
     vec2 velocities[];
 } velocityData;
 
+layout(push_constant) uniform PushConstants {
+    float delta;
+} constants;
+
 void main()
 {
-    particleData.vertices[gl_GlobalInvocationID.x].pos += velocityData.velocities[gl_GlobalInvocationID.x];
+    particleData.vertices[gl_GlobalInvocationID.x].pos += velocityData.velocities[gl_GlobalInvocationID.x] * constants.delta;
 
     if (abs(particleData.vertices[gl_GlobalInvocationID.x].pos.x) > 2000 || abs(particleData.vertices[gl_GlobalInvocationID.x].pos.y) > 2000)
         velocityData.velocities[gl_GlobalInvocationID.x] *= -1;

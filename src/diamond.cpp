@@ -224,11 +224,11 @@ void diamond::Initialize(int width, int height, const char* windowName, const ch
 
     CreateSwapChain();
 
-    // setup rest of pipeline
+    // setup rest of pipeline (todo: get rid of some of this and replace with recreateswap)
     CreateRenderPass();
     CreateDescriptorSetLayout();
-    //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
+    CreateDepthResources();
     // ------------------------
 
     CreateFrameBuffers();
@@ -679,10 +679,10 @@ void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::v
 {
     const diamond_vertex vertices[] =
     {
-        {{-0.5f, -0.5f}, color, {0.0f, 1.0f}, -1},
-        {{0.5f, -0.5f}, color, {1.0f, 1.0f}, -1},
-        {{0.5f, 0.5f}, color, {1.0f, 0.0f}, -1},
-        {{-0.5f, 0.5f}, color, {0.0f, 0.0f}, -1}
+        {{-0.5f, -0.5f, 0.f}, color, {0.0f, 1.0f}, -1},
+        {{0.5f, -0.5f, 0.f}, color, {1.0f, 1.0f}, -1},
+        {{0.5f, 0.5f, 0.f}, color, {1.0f, 0.0f}, -1},
+        {{-0.5f, 0.5f, 0.f}, color, {0.0f, 0.0f}, -1}
     };
     const u16 indices[] =
     {
@@ -705,10 +705,10 @@ void diamond::DrawAnimatedQuad(int textureIndex, int framesPerRow, int totalFram
 
     const diamond_vertex vertices[] =
     {
-        {{-0.5f, -0.5f}, color, { frameSize.x * frameX, frameSize.y * (frameY + 1) }, -1},
-        {{0.5f, -0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * (frameY + 1) }, -1},
-        {{0.5f, 0.5f}, color, { frameSize.x * (frameX + 1), frameSize.y * frameY }, -1},
-        {{-0.5f, 0.5f}, color, { frameSize.x * frameX, frameSize.y * frameY }, -1}
+        {{-0.5f, -0.5f, 0.f}, color, { frameSize.x * frameX, frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, -0.5f, 0.f}, color, { frameSize.x * (frameX + 1), frameSize.y * (frameY + 1) }, -1},
+        {{0.5f, 0.5f, 0.f}, color, { frameSize.x * (frameX + 1), frameSize.y * frameY }, -1},
+        {{-0.5f, 0.5f, 0.f}, color, { frameSize.x * frameX, frameSize.y * frameY }, -1}
     };
     const u16 indices[] =
     {
@@ -786,10 +786,10 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
         if (texCoords != nullptr)
             texCoord = texCoords[i];
 
-        quadVertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.w }, textureIndexes[i] };
-        quadVertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.w }, textureIndexes[i] };
-        quadVertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.z, texCoord.y }, textureIndexes[i] };
-        quadVertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y}, color, { texCoord.x, texCoord.y }, textureIndexes[i] };
+        quadVertices[vertexIndex] =     { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.x, texCoord.w }, textureIndexes[i] };
+        quadVertices[vertexIndex + 1] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (-0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.z, texCoord.w }, textureIndexes[i] };
+        quadVertices[vertexIndex + 2] = { {(0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.z, texCoord.y }, textureIndexes[i] };
+        quadVertices[vertexIndex + 3] = { {(-0.5f * offsetScales[i].z) + offsetScales[i].x, (0.5f * offsetScales[i].w) + offsetScales[i].y, 0.f}, color, { texCoord.x, texCoord.y }, textureIndexes[i] };
         quadIndices[indicesIndex] =     baseIndices[0] + vertexIndex;
         quadIndices[indicesIndex + 1] = baseIndices[1] + vertexIndex;
         quadIndices[indicesIndex + 2] = baseIndices[2] + vertexIndex;
@@ -803,14 +803,14 @@ void diamond::DrawQuadsOffsetScale(int* textureIndexes, glm::vec4* offsetScales,
     DrawIndexed(static_cast<u32>(quadCount * 6), static_cast<u32>(quadCount * 4), -1, originTransform);
 }
 
-glm::mat4 diamond::GenerateViewMatrix(glm::vec2 cameraPosition)
+glm::mat4 diamond::GenerateViewMatrix(glm::vec3 cameraPosition)
 {
-    return glm::lookAt(glm::vec3(cameraPosition.x, cameraPosition.y, 5.f), glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
+    return glm::lookAt(cameraPosition, glm::vec3(cameraPosition.x, cameraPosition.y, 0.f), glm::vec3(0.f, 1.f, 0.f));
 }
 
 glm::mat4 diamond::GenerateModelMatrix(diamond_transform objectTransform)
 {
-    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, 0.f));
+    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(objectTransform.location, objectTransform.zPosition));
     model = model * glm::rotate(glm::mat4(1.f), glm::radians(objectTransform.rotation), glm::vec3(0.0f, 0.0f, -1.0f));
     model = model * glm::scale(glm::mat4(1.f), glm::vec3(objectTransform.scale, 1.f));
     return model;
@@ -821,7 +821,7 @@ void diamond::CreateFrameBuffers()
     swapChain.swapChainFrameBuffers.resize(swapChain.swapChainImageViews.size());
     for (int i = 0; i < swapChain.swapChainImageViews.size(); i++)
     {
-        std::array<VkImageView, 2> attachments = { colorImageView, swapChain.swapChainImageViews[i] };
+        std::array<VkImageView, 3> attachments = { colorImageView, swapChain.swapChainImageViews[i], depthImageView };
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
@@ -1025,16 +1025,24 @@ void diamond::CreateColorResources()
     colorImageView = CreateImageView(colorImage, colorFormat, 1);
 }
 
-VkImageView diamond::CreateImageView(VkImage image, VkFormat format, u32 mipLevels)
+void diamond::CreateDepthResources()
+{
+    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    CreateImage(swapChain.swapChainExtent.width, swapChain.swapChainExtent.height, depthFormat, 1, msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+    depthImageView = CreateImageView(depthImage, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+}
+
+VkImageView diamond::CreateImageView(VkImage image, VkFormat format, u32 mipLevels, VkImageAspectFlags aspectFlags)
 {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.levelCount = mipLevels;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
@@ -1062,13 +1070,49 @@ void diamond::UpdatePerFrameBuffer(u32 imageIndex)
 {
     f32 aspect = swapChain.swapChainExtent.width / (f32) swapChain.swapChainExtent.height;
 
-    if (cameraMode == diamond_camera_mode::Perspective)
-        cameraProjMatrix = glm::perspective(glm::radians(75.f), aspect, 0.1f, 10.f);
-    else if (cameraMode == OrthographicViewportDependent)
-        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, 0.1f, 50.f));
-    else
-        //proj = glm::transpose(glm::ortho(-0.5f * aspect, 0.5f * aspect, 0.5f, -0.5f, 0.1f, 50.f));
-        cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * cameraDimensions.x, 0.5f * cameraDimensions.x, 0.5f * cameraDimensions.y, -0.5f * cameraDimensions.y, 0.1f, 50.f));
+    f32 zn = 0.1f;
+    f32 zf = 50.f;
+    switch (cameraMode)
+    {
+        default:
+        case diamond_camera_mode::OrthographicViewportDependent:
+            cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.width, 0.5f * swapChain.swapChainExtent.height, -0.5f * swapChain.swapChainExtent.height, zn, zf));
+            break;
+        case diamond_camera_mode::OrthographicViewportIndependent:
+            cameraProjMatrix = glm::transpose(glm::ortho(-0.5f * cameraDimensions.x, 0.5f * cameraDimensions.x, 0.5f * cameraDimensions.y, -0.5f * cameraDimensions.y, zn, zf));
+            break;
+        case diamond_camera_mode::FlatOrthographicViewportDependent:
+        {
+            f32 l = -0.5f * swapChain.swapChainExtent.width;
+            f32 r = 0.5f * swapChain.swapChainExtent.width;
+            f32 b = 0.5f * swapChain.swapChainExtent.height;
+            f32 t = -0.5f * swapChain.swapChainExtent.height;
+            cameraProjMatrix = glm::mat4(
+                2.f / (r - l), 0, 0, 0,
+                0, 2.f / (t - b), 0, 0,
+                0, 0, 1.f / (zn - zf), 0,
+                (l + r) / (l - r), (t + b) / (b - t), zn / (zn - zf), 1
+            );
+            cameraProjMatrix = glm::transpose(cameraProjMatrix);
+        } break;
+        case diamond_camera_mode::FlatOrthographicViewportIndependent:
+        {
+            f32 l = -0.5f * cameraDimensions.x;
+            f32 r = 0.5f * cameraDimensions.x;
+            f32 b = 0.5f * cameraDimensions.y;
+            f32 t = -0.5f * cameraDimensions.y;
+            cameraProjMatrix = glm::mat4(
+                2.f / (r - l), 0, 0, 0,
+                0, 2.f / (t - b), 0, 0,
+                0, 0, 1.f / (zn - zf), 0,
+                (l + r) / (l - r), (t + b) / (b - t), zn / (zn - zf), 1
+            );
+            cameraProjMatrix = glm::transpose(cameraProjMatrix);
+        } break;
+        case diamond_camera_mode::Perspective:
+            cameraProjMatrix = glm::perspective(glm::radians(75.f), aspect, zn, zf);
+            break;
+    }
 
     diamond_frame_buffer_object fbo{};
     fbo.viewProj = cameraProjMatrix * cameraViewMatrix;
@@ -1286,6 +1330,10 @@ void diamond::CleanupSwapChain()
     vkDestroyImage(logicalDevice, colorImage, nullptr);
     vkFreeMemory(logicalDevice, colorImageMemory, nullptr);
 
+    vkDestroyImageView(logicalDevice, depthImageView, nullptr);
+    vkDestroyImage(logicalDevice, depthImage, nullptr);
+    vkFreeMemory(logicalDevice, depthImageMemory, nullptr);
+
     // for (int i = 0; i < swapChain.swapChainImages.size(); i++)
     // {
     //     vkDestroyBuffer(logicalDevice, uniformBuffers[i], nullptr);
@@ -1331,6 +1379,7 @@ void diamond::RecreateSwapChain()
     //CreateRenderPass();
     //CreateGraphicsPipeline(defaultVertexShader, defaultFragmentShader);
     CreateColorResources();
+    CreateDepthResources();
     CreateFrameBuffers();
     //CreateUniformBuffers();
     //CreateDescriptorPool();
@@ -1808,6 +1857,18 @@ void diamond::CreateGraphicsPipeline(diamond_graphics_pipeline& pipeline)
     VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipeline.pipelineLayout);
     Assert(result == VK_SUCCESS);
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = pipeline.pipelineInfo.enableDepthTesting;
+    depthStencil.depthWriteEnable = pipeline.pipelineInfo.enableDepthTesting;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f; // Optional
+    depthStencil.maxDepthBounds = 1.0f; // Optional
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {}; // Optional
+    depthStencil.back = {}; // Optional
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
@@ -1817,7 +1878,7 @@ void diamond::CreateGraphicsPipeline(diamond_graphics_pipeline& pipeline)
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr; // Optional
+    pipelineInfo.pDepthStencilState = &depthStencil; // Optional
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState; // Optional
     pipelineInfo.layout = pipeline.pipelineLayout;
@@ -1919,6 +1980,14 @@ void diamond::CreateComputeDescriptorSetLayout(diamond_compute_pipeline& pipelin
 
 void diamond::CreateRenderPass()
 {
+    VkAttachmentDescription depthAttachment{};
+    depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+    depthAttachment.samples = msaaSamples;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChain.swapChainImageFormat;
     colorAttachment.samples = msaaSamples;
@@ -1947,21 +2016,26 @@ void diamond::CreateRenderPass()
     colorAttachmentResolveRef.attachment = 1;
     colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 2;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pResolveAttachments = &colorAttachmentResolveRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, colorAttachmentResolve };
+    std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, colorAttachmentResolve, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = static_cast<u32>(attachments.size());
@@ -2263,9 +2337,13 @@ void diamond::EndFrame(glm::vec4 clearColor)
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChain.swapChainExtent;
 
-        VkClearValue v_clearColor = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
+        std::array<VkClearValue, 3> clearValues{};
+        clearValues[0].color = { clearColor.r, clearColor.g, clearColor.b, clearColor.a };
+        clearValues[1].color = { clearColor.r, clearColor.g, clearColor.b, clearColor.a };
+        clearValues[2].depthStencil = { 1.f, 0 };
         renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &v_clearColor;
+        renderPassInfo.clearValueCount = static_cast<u32>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
         

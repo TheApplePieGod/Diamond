@@ -64,7 +64,7 @@ public:
     /*
     * Sets the mode of the camera which renders the scene
     *
-    * This only needs to be called once unless the mode or dimensions change (which typically won't happen)
+    * This only needs to be called once unless the mode changes or typically when the screen gets resized
     * 
     * @param camMode The projection mode of the camera
     * @camDimensions The size that the camera should be able to see (only applies for OrthographicViewportIndependent mode)
@@ -403,9 +403,11 @@ public:
     /*
     * Generate a basic 2D view matrix given the position of the camera
     * 
-    * @param cameraPosition World position of the camera
+    * The camera is always looking directly ahead towards z = 0
+    * 
+    * @param cameraPosition World position of the camera (effects of the z position depend on the camera view mode)
     */
-    glm::mat4 GenerateViewMatrix(glm::vec2 cameraPosition);
+    glm::mat4 GenerateViewMatrix(glm::vec3 cameraPosition);
 
     /*
     * Get the camera's projection matrix (CameraMode)
@@ -557,6 +559,7 @@ private:
     void CreateComputeDescriptorSets(diamond_compute_pipeline& pipeline, int bufferCount, int imageCount, diamond_compute_buffer_info* bufferInfo);
     void CreateTextureSampler();
     void CreateColorResources();
+    void CreateDepthResources();
     void Present();
 
     #if DIAMOND_IMGUI
@@ -583,7 +586,7 @@ private:
     VkImageView CreateTextureImage(void* data, VkImage& image, VkDeviceMemory& imageMemory, int width, int height);
     void CreateImage(uint32_t width, uint32_t height, VkFormat format, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
     void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-    VkImageView CreateImageView(VkImage image, VkFormat format, uint32_t mipLevels);
+    VkImageView CreateImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     glm::mat4 GenerateModelMatrix(diamond_transform objectTransform);
     VkSampleCountFlagBits GetMaxSampleCount();
 
@@ -636,6 +639,9 @@ private:
     VkImage colorImage;
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     
