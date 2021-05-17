@@ -677,12 +677,17 @@ void diamond::DrawFromCompute(int pipelineIndex, int bufferIndex, u32 vertexCoun
 // todo: bake quad vertex & index data in separate buffer?
 void diamond::DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color)
 {
+    DrawQuad(textureIndex, { 0.f, 0.f, 1.f, 1.f }, quadTransform, color);
+}
+
+void diamond::DrawQuad(int textureIndex, glm::vec4 texCoords, diamond_transform quadTransform, glm::vec4 color)
+{
     const diamond_vertex vertices[] =
     {
-        {{-0.5f, -0.5f, 0.f}, color, {0.0f, 1.0f}, -1},
-        {{0.5f, -0.5f, 0.f}, color, {1.0f, 1.0f}, -1},
-        {{0.5f, 0.5f, 0.f}, color, {1.0f, 0.0f}, -1},
-        {{-0.5f, 0.5f, 0.f}, color, {0.0f, 0.0f}, -1}
+        {{-0.5f, -0.5f, 0.f}, color, {texCoords.x, texCoords.w}, -1},
+        {{0.5f, -0.5f, 0.f}, color, {texCoords.z, texCoords.w}, -1},
+        {{0.5f, 0.5f, 0.f}, color, {texCoords.z, texCoords.y}, -1},
+        {{-0.5f, 0.5f, 0.f}, color, {texCoords.x, texCoords.y}, -1}
     };
     const u16 indices[] =
     {

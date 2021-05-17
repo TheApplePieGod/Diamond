@@ -337,12 +337,14 @@ public:
     * this function handles the geometry for you.
     * 
     * @param textureIndex The index of the registered texture that will be drawn on the quad. Pass -1 to render only color
+    * @param texCoords The texture coordinates of the top left and bottom right vertices respectively { TL.u, TL.v, BR.u, BR.v }
     * @param quadTransform The world space transform of the quad
     * @param color The color applied to the quad
     * @see RegisterTexture() diamond_transform
     * @warning This is is not compatible when a custom vertex structure is being used
     */
     void DrawQuad(int textureIndex, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
+    void DrawQuad(int textureIndex, glm::vec4 texCoords, diamond_transform quadTransform, glm::vec4 color = glm::vec4(1.f));
 
     /*
     * Draw a quad which has an animated texture to the screen with a given transform
