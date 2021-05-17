@@ -29,7 +29,8 @@ endif()
 file(GLOB SOURCES "src/*.cpp")
 
 ## 3. To compile examples, uncomment add_executable and comment out add_library and rebuild
-## otherwise, change nothing
+## otherwise, change nothing. Note: if you are compiling the test .exe, it relies on glslc.exe being accessible. 
+## To do this, add your vulkan installation's /Bin to your system path (e.g. C:\VulkanSDK\1.2.162.1\Bin) 
 # add_executable(Diamond "${SOURCES}" "src/testing/main.cpp")
 add_library(Diamond ${SOURCES})
 
