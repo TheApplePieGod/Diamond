@@ -72,7 +72,7 @@ $ cd build
 4. Now run these commands in either 'Debug' or 'Release' depending on your use case
 
 ```
-$ cmake .. -DCMAKE_BUILD_TYPE=Release -DDEBUG_MODE=ON -DIMGUI_INTEGRATION=ON
+$ cmake .. -DCMAKE_BUILD_TYPE=Release -DDEBUG_MODE=OFF -DIMGUI_INTEGRATION=ON
 $ cmake --build . --config Release
 $ cmake --install . --config Release
 ```
