@@ -12,8 +12,9 @@ include_directories("src/lib/glfw/include")
 include_directories("src/lib")
 include_directories("include")
 
-## 1. Build options
-option(DEBUG "Build Diamond in debug mode" ON)
+## 1. Build options (these can be set here but it is recommended to set these from the command line,
+## as changing the values here doesn't always force a rebuild)
+option(DEBUG_MODE "Build Diamond in debug mode" ON)
 option(IMGUI_INTEGRATION "Build diamond with ImGui integration" ON)
 
 ## 2. Install the Vulkan SDK (major version 1.2) from https://vulkan.lunarg.com/sdk/home and replace the base path below
@@ -21,7 +22,7 @@ set(VulkanBasePath "C:/VulkanSDK/1.2.162.1")
 include_directories("${VulkanBasePath}/Include")
 find_library(vulkan-1 vulkan-1 "${VulkanBasePath}/Lib")
 
-if (DEBUG)
+if (DEBUG_MODE)
     add_compile_definitions(DIAMOND_DEBUG)
 endif()
 
