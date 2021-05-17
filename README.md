@@ -108,6 +108,7 @@ The main.cpp in the Diamond repository contains a few examples which should give
 To use the library, include 'diamond.h' and initialize a new engine instance
 
 ```cpp
+#include <Diamond/diamond.h>
 diamond* Engine = new diamond();
 ```
 
@@ -118,10 +119,12 @@ int main(int argc, char** argv)
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "App", "images/default-texture.png");
-
+    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 5.f)));
+    
     while (Engine->IsRunning())
     {
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
+        Engine->BeginFrame();
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
     }
@@ -132,13 +135,15 @@ int main(int argc, char** argv)
 }
 ```
 
-Create a bare bones square drawing on the screen
+Draw a simple square on the screen
 ```cpp
 int main(int argc, char** argv)
 {
     diamond* Engine = new diamond();
     
     Engine->Initialize(800, 600, "App", "images/default-texture.png");
+    Engine->UpdateCameraViewMode(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f));
+    Engine->SetCameraViewMatrix(Engine->GenerateViewMatrix(glm::vec3(0.f, 0.f, 5.f)));
 
     diamond_graphics_pipeline_create_info gpCreateInfo = {};
     gpCreateInfo.vertexShaderPath = "shaders/main.vert.spv";
@@ -149,7 +154,7 @@ int main(int argc, char** argv)
 
     while (Engine->IsRunning())
     {
-        Engine->BeginFrame(diamond_camera_mode::OrthographicViewportIndependent, glm::vec2(500.f, 500.f), Engine->GenerateViewMatrix(glm::vec2(0.f, 0.f)));
+        Engine->BeginFrame();
 
         Engine->SetGraphicsPipeline(0);
 
@@ -157,6 +162,7 @@ int main(int argc, char** argv)
         quadTransform.location = { 0.f, 0.f };
         quadTransform.rotation = 45.f;
         quadTransform.scale = { 500.f, 500.f };
+        quadTransform.zPosition = 0.f;
         Engine->DrawQuad(0, quadTransform);
 
         Engine->EndFrame({ 0.f, 0.f, 0.f, 1.f });
@@ -170,7 +176,6 @@ int main(int argc, char** argv)
 
 ## Notes
 
-- Diamond uses the cross platform window manager library [GLFW](https://www.glfw.org/) behind the scenes, so the engine exposes the GLFW window handle in order to be used for input and other window related functionality.
 - Because Diamond is built on Vulkan, Vulkan expects .spv compiled shaders. The Diamond repository includes a CompileShaders.bat which uses [glslc](https://github.com/google/shaderc/tree/main/glslc) to compile and is called via CMake at build time, so it is a good script to reuse or use as a basis.
 
 ---
